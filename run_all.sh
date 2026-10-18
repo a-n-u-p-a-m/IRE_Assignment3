@@ -73,7 +73,8 @@ if run_stage tests && [[ $SKIP_TESTS -eq 0 ]]; then
 fi
 
 # --- 1. data ----------------------------------------------------------------
-if [[ -z "$ONLY" || "$ONLY" == part* ]]; then
+# Part 4 generates its own data and needs no download; Parts 1-3 do.
+if [[ -z "$ONLY" || "$ONLY" == part1 || "$ONLY" == part2 || "$ONLY" == part3 ]]; then
   if [[ ! -f data/sift-128-euclidean.hdf5 || ! -f data/glove-100-angular.hdf5 ]]; then
     echo
     echo "Dataset files are missing from data/."
@@ -105,7 +106,7 @@ if run_stage part4; then
 fi
 
 # --- 3. report artefacts ----------------------------------------------------
-if run_stage figures || [[ -z "$ONLY" ]]; then
+if run_stage figures; then
   banner "Figures and tables (regenerated from results/results.csv only)"
   python3 -m annbench.experiments.make_figures --results "$RESULTS" --figures "$FIGURES"
   python3 -m annbench.experiments.make_tables  --results "$RESULTS" --tables  "$TABLES"

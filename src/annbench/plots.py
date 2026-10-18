@@ -64,11 +64,19 @@ def plot_tradeoff(
     select_col: str = "recall_tune",
     exact_qps: float | None = None,
     title: str | None = None,
-    xlim=(0.5, 1.005),
+    xlim=None,
 ):
     """Recall@10 against QPS, one Pareto curve per index type (Part 2)."""
-    fig, ax = plt.subplots(figsize=(6.4, 4.4))
+    fig, ax = plt.subplots(figsize=(6.6, 4.5))
     sub = df[(df["dataset"] == dataset) & (df["index_type"] != "Flat")]
+
+    # Fit the x-range to the data rather than assuming everything clears 0.5.
+    # An index whose whole curve sits below the default window (IVF-PQ without
+    # re-ranking can) would otherwise appear as a legend entry with no line,
+    # which reads as a plotting bug instead of as the finding it is.
+    if xlim is None:
+        lo = float(sub[recall_col].min()) if not sub.empty else 0.0
+        xlim = (max(0.0, min(0.5, lo - 0.02)), 1.005)
 
     for kind, g in sub.groupby("index_type"):
         colour = INDEX_COLOURS.get(kind, None)
@@ -91,10 +99,11 @@ def plot_tradeoff(
     if exact_qps and np.isfinite(exact_qps):
         ax.axhline(exact_qps, color=INDEX_COLOURS["Flat"], ls="--", lw=1.3)
         ax.text(
-            xlim[0] + 0.01,
-            exact_qps * 1.08,
-            f"exact (FAISS Flat), {exact_qps:.0f} QPS",
+            1.0,
+            exact_qps * 1.10,
+            f"exact (FAISS Flat), {exact_qps:,.0f} QPS",
             fontsize=8,
+            ha="right",
             color=INDEX_COLOURS["Flat"],
         )
 
@@ -107,7 +116,7 @@ def plot_tradeoff(
     ax.set_ylabel("queries per second (1 query, 1 thread)")
     ax.set_title(title or f"{dataset}: accuracy / speed trade-off")
     ax.grid(True, which="both", alpha=0.25, lw=0.5)
-    ax.legend(frameon=False, fontsize=9, loc="lower left")
+    ax.legend(frameon=False, fontsize=9, loc="lower left", ncol=2)
     return _save(fig, out_path)
 
 

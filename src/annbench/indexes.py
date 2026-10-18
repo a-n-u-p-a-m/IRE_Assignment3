@@ -45,7 +45,25 @@ import time
 
 import numpy as np
 
-__all__ = ["FlatIndex", "HnswIndex", "IVFFlatIndex", "IVFPQIndex", "make_index", "divisors"]
+__all__ = [
+    "FlatIndex", "HnswIndex", "IVFFlatIndex", "IVFPQIndex",
+    "make_index", "divisors", "index_type_name",
+]
+
+
+def index_type_name(kind: str, params: dict) -> str:
+    """The label a configuration is reported under.
+
+    IVF-PQ with exact re-ranking is a different index from plain IVF-PQ: it
+    keeps the original vectors in memory, so it has a different memory cost and
+    a different recall ceiling. Pooling the two on one Pareto frontier would
+    let the re-ranked variant's accuracy be credited to PQ's memory footprint,
+    which is exactly the trade-off Part 2 is supposed to expose. They are
+    therefore reported as separate index types.
+    """
+    if kind == "IVF-PQ" and params.get("refine"):
+        return "IVF-PQ+rerank"
+    return kind
 
 
 def divisors(d: int, lo: int = 2, hi: int | None = None) -> list[int]:
@@ -185,6 +203,10 @@ class IVFFlatIndex(_IVFBase):
         t0 = time.perf_counter()
         quantizer = faiss.IndexFlatL2(self.dim)
         index = faiss.IndexIVFFlat(quantizer, self.dim, nlist, faiss.METRIC_L2)
+        # FAISS does not take ownership of the coarse quantizer, so a Python
+        # reference has to outlive this function or the index ends up pointing
+        # at freed memory.
+        self._quantizer = quantizer
         index.cp.seed = self.seed
         index.train(self._training_subset(train, nlist))
         index.add(train)
@@ -221,24 +243,31 @@ class IVFPQIndex(_IVFBase):
             )
         t0 = time.perf_counter()
         quantizer = faiss.IndexFlatL2(self.dim)
-        index = faiss.IndexIVFPQ(quantizer, self.dim, nlist, m, nbits)
-        index.cp.seed = self.seed
-        index.train(self._training_subset(train, nlist))
-        index.add(train)
+        base = faiss.IndexIVFPQ(quantizer, self.dim, nlist, m, nbits)
+        # Keep Python references alive: FAISS does not own the quantizer, and
+        # IndexRefineFlat does not own its base index.
+        self._quantizer = quantizer
+        self._ivf = base
+        base.cp.seed = self.seed
+        base.train(self._training_subset(train, nlist))
+
         if self.params.get("refine"):
-            base = index
+            # The vectors must be added *through* the wrapper: it forwards them
+            # to both the PQ index and its own flat copy. Adding to the base
+            # first and wrapping afterwards leaves the refine index empty and
+            # trips an ntotal assertion inside FAISS.
             index = faiss.IndexRefineFlat(base)
             # IndexRefineFlat fetches k * k_factor candidates from the base
-            # index and re-ranks them with the original vectors.  We express
+            # index and re-ranks them against the original vectors. We express
             # the knob as "re-rank the top refine_k candidates at k=refine_at_k"
             # so the config file reads the way the assignment phrases it.
             index.k_factor = float(self.params.get("refine_k", 100)) / float(
                 self.params.get("refine_at_k", 10)
             )
-            index.base_index = base
-            self._ivf = base
+            index.add(train)
         else:
-            self._ivf = index
+            base.add(train)
+            index = base
         self.build_time_s = time.perf_counter() - t0
         self.index = index
         self.n_vectors = train.shape[0]

@@ -31,6 +31,7 @@ import os
 from ..datasets import verify_ground_truth
 from ..indexes import FlatIndex
 from ..timing import TimingConfig, time_batch, time_single_query
+from ..datasets import split_queries
 from .common import base_parser, get_dataset, setup, splits_of
 
 
@@ -51,9 +52,23 @@ def main(argv=None) -> int:
         print(f"  {ds!r}")
 
         # --- does our exact search agree with the shipped ground truth? ----
-        print("  verifying ground truth against the shipped neighbour ids ...", flush=True)
-        v = verify_ground_truth(ds_test, k=k)
-        v["note"] = ds.note
+        # This check must run against the FULL database and the ids shipped
+        # with it. Running it on a subset would compare our exact search to
+        # ground truth we recomputed ourselves a moment earlier, which is
+        # circular and would pass no matter what the recall function does.
+        # In --quick runs, where `ds` is a subset, the full file is reloaded
+        # for this one check and only `verify_queries` queries are used, so
+        # the check stays honest without costing a full brute-force pass.
+        n_verify = int(cfg.get("verify_queries", 5000))
+        ds_full = get_dataset(cfg, name, n_vectors=2**62, verbose=False)
+        ds_verify = split_queries(ds_full, "test", half=n_verify)
+        print(
+            f"  verifying against the shipped neighbour ids "
+            f"(full database, n={ds_full.n:,}, {ds_verify.n_queries} queries) ...",
+            flush=True,
+        )
+        v = verify_ground_truth(ds_verify, k=k)
+        v["note"] = ds_full.note
         verif_rows.append(v)
         print(
             f"    naive set recall={v['naive_set_recall']:.6f}  "
@@ -124,7 +139,7 @@ def main(argv=None) -> int:
             machine_id=env["machine_id"],
             notes=f"batch/single speedup={speedup:.1f}x; both single-threaded",
         )
-        del index
+        del index, ds_full, ds_verify
 
     # ------------------------------------------------------------------
     with open(os.path.join(args.tables, "part1_verification.md"), "w", encoding="utf-8") as f:

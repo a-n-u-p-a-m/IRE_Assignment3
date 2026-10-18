@@ -7,6 +7,7 @@ name: full
 seed: 42
 k: 10                 # recall@10 throughout
 tune_queries: 5000    # first half of the 10k queries: everything is tuned here
+verify_queries: 5000   # queries used for the ground-truth check against the FULL database
 test_queries: 5000    # last half: reported numbers only
 
 timing:

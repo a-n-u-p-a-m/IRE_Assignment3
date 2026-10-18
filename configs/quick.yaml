@@ -13,6 +13,7 @@ name: quick
 seed: 42
 k: 10
 tune_queries: 1000
+verify_queries: 500   # queries used for the ground-truth check against the FULL database
 test_queries: 1000
 
 timing:
@@ -75,15 +76,19 @@ part4:
   k_intrinsic: [2, 8, 32, 128]
   contrast_sample: 5000
   stop_above_recall: 0.98
+  # The grid reaches further here than elsewhere in quick mode: at k_intrinsic
+  # = 128 (the control) the recall target is genuinely hard, and a sweep that
+  # stops short would show every index "not reaching 0.95" for want of
+  # searching rather than for the reason under study.
   hnsw:
     M: [16]
     ef_construction: 100
-    ef_search: [10, 40, 160]
+    ef_search: [10, 40, 160, 400, 800]
   ivfflat:
     nlist: [256]
-    nprobe: [1, 4, 16, 64, 128]
+    nprobe: [1, 4, 16, 64, 128, 256]
   ivfpq:
     m: [16]
     nlist: [256]
     nbits: 8
-    nprobe: [1, 4, 16, 64, 128]
+    nprobe: [1, 4, 16, 64, 128, 256]

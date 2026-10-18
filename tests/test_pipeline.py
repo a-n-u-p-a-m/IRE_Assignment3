@@ -142,6 +142,8 @@ def test_ivfpq_rejects_m_that_does_not_divide_d():
         ("HNSW", {"M": 8, "ef_construction": 60}, 200),
         ("IVF-Flat", {"nlist": 16}, 16),
         ("IVF-PQ", {"nlist": 16, "m": 4, "nbits": 6}, 16),
+        ("IVF-PQ", {"nlist": 16, "m": 4, "nbits": 6, "refine": True,
+                    "refine_k": 100, "refine_at_k": 10}, 16),
     ],
 )
 def test_every_index_finds_its_own_neighbours(kind, params, param_value):
@@ -157,6 +159,10 @@ def test_every_index_finds_its_own_neighbours(kind, params, param_value):
     exact = true_distances(ds.queries, ds.train, ids)
     r = recall_at_k(ids, ds.gt_ids, ds.gt_dists, exact, k=10)
     floor = 0.99 if kind in ("Flat", "HNSW", "IVF-Flat") else 0.5
+    if params.get("refine"):
+        # re-ranking with the original vectors removes the quantisation
+        # ceiling, so this configuration has no excuse for low recall
+        floor = 0.95
     assert r >= floor, f"{kind} only reached recall {r:.3f}"
 
 
@@ -169,6 +175,28 @@ def test_search_one_and_batch_agree():
     for i in range(ds.n_queries):
         one_ids, _ = idx.search_one(ds.queries[i], 10)
         assert set(one_ids.tolist()) == set(batch_ids[i].tolist())
+
+
+def test_ivfpq_refine_beats_plain_ivfpq():
+    """Re-ranking exists to lift the quantisation ceiling; check it does.
+
+    This also guards the construction order: the vectors must be added through
+    the IndexRefineFlat wrapper, not to the base index before wrapping.
+    """
+    ds = _toy_dataset(n=2000, d=16, nq=50)
+    scores = {}
+    for refine in (False, True):
+        params = {"nlist": 32, "m": 4, "nbits": 6}
+        if refine:
+            params |= {"refine": True, "refine_k": 100, "refine_at_k": 10}
+        idx = make_index("IVF-PQ", ds.dim, seed=0, build_threads=1, **params)
+        idx.build(ds.train)
+        idx.set_search_param(32)
+        ids, _ = idx.search(ds.queries, 10, threads=1)
+        exact = true_distances(ds.queries, ds.train, ids)
+        scores[refine] = recall_at_k(ids, ds.gt_ids, ds.gt_dists, exact, k=10)
+    assert scores[True] > scores[False]
+    assert scores[True] >= 0.99
 
 
 def test_index_reports_plausible_size():

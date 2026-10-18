@@ -37,7 +37,7 @@ import sys
 import numpy as np
 
 from .frontier import pareto_frontier
-from .indexes import make_index
+from .indexes import index_type_name, make_index
 from .recall import recall_at_k, true_distances
 from .results import ResultsWriter
 from .timing import TimingConfig, time_single_query
@@ -80,6 +80,9 @@ def sweep_config(
     """
     params_json = json.dumps(build_params, sort_keys=True)
     search_values = list(search_values) or [None]
+    # How this configuration is reported (IVF-PQ with re-ranking is its own
+    # index type). The build still uses `index_kind`.
+    type_name = index_type_name(index_kind, build_params)
 
     # Skip the (expensive) build entirely when every row already exists.
     todo = [
@@ -90,18 +93,18 @@ def sweep_config(
             dataset=dataset_name,
             variant=variant,
             n_vectors=train.shape[0],
-            index_type=index_kind,
+            index_type=type_name,
             params_json=params_json,
             search_param=("" if v is None else v),
         )
     ]
     if not todo:
         if verbose:
-            print(f"    [skip] {index_kind} {params_json} — already in results.csv")
+            print(f"    [skip] {type_name} {params_json} — already in results.csv")
         return 0
 
     if verbose:
-        print(f"    build {index_kind} {params_json} on n={train.shape[0]} ...", flush=True)
+        print(f"    build {type_name} {params_json} on n={train.shape[0]} ...", flush=True)
     index = make_index(index_kind, train.shape[1], seed=seed, build_threads=build_threads, **build_params)
     build_time = index.build(train)
     size = index.serialized_bytes()
@@ -120,7 +123,7 @@ def sweep_config(
             dataset=dataset_name,
             variant=variant,
             n_vectors=train.shape[0],
-            index_type=index_kind,
+            index_type=type_name,
             params_json=params_json,
             search_param=("" if v is None else v),
         )
@@ -143,7 +146,7 @@ def sweep_config(
             variant=variant,
             n_vectors=train.shape[0],
             dim=train.shape[1],
-            index_type=index_kind,
+            index_type=type_name,
             params_json=params_json,
             search_param_name=index.search_param_name,
             search_param=("" if v is None else v),
