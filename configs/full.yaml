@@ -1,0 +1,89 @@
+# Full run: the configuration behind every number in the report.
+#
+# `configs/quick.yaml` is the same structure with smaller values. Quick mode is
+# a different config, never a different code path.
+
+name: full
+seed: 42
+k: 10                 # recall@10 throughout
+tune_queries: 5000    # first half of the 10k queries: everything is tuned here
+test_queries: 5000    # last half: reported numbers only
+
+timing:
+  repeats: 3          # median of 3
+  warmup: true
+  max_timed_queries: 5000
+  min_timed_queries: 500
+  time_budget_s: 20.0 # per repeat; a slow config times fewer queries, recorded in the CSV
+  check_every: 32
+  time_on: tune       # QPS is measured on the tuning split; recall on both
+
+build:
+  threads: 0          # 0 = all cores. Search is always single-threaded.
+
+datasets:
+  sift:
+    path: data/sift-128-euclidean.hdf5
+    normalize: false
+    n_vectors: null   # null = use all 1M
+  glove:
+    path: data/glove-100-angular.hdf5
+    normalize: true   # then treated as Euclidean; see datasets.py
+    n_vectors: null
+
+part2:
+  stop_above_recall: 0.995
+  hnsw:
+    M: [8, 16, 32]
+    ef_construction: 200
+    ef_search: [10, 16, 24, 32, 48, 64, 96, 128, 192, 256, 384, 512, 768]
+  ivfflat:
+    nlist: [1024, 4096, 16384]
+    nprobe: [1, 2, 4, 8, 16, 32, 64, 128, 256, 512]
+  ivfpq:
+    # m MUST divide the dataset dimension.
+    #   SIFT  d=128 -> 8, 16, 32, 64 are legal
+    #   GloVe d=100 -> 4, 10, 20, 25, 50 are legal (powers of two are NOT)
+    m:
+      sift: [16, 32]
+      glove: [20, 25]
+    nlist: [4096]
+    nbits: 8
+    nprobe: [1, 2, 4, 8, 16, 32, 64, 128, 256, 512]
+    refine: true      # also run IVF-PQ + exact re-ranking of the top 100
+    refine_k: 100
+
+part3:
+  dataset: sift
+  sizes: [100000, 300000, 1000000]
+  nlist_multiplier: 4.0   # nlist ~ 4*sqrt(n), rounded to a power of two
+  hnsw:
+    M: 16
+    ef_construction: 200
+  ef_search: [10, 20, 40, 80, 160, 320, 640]
+  nprobe: [1, 2, 4, 8, 16, 32, 64, 128, 256]
+  stop_above_recall: 0.995
+
+part4:
+  # Intrinsic dimensionality at fixed ambient dimension. k_intrinsic == dim is
+  # the control. Capped at 500K vectors by the brief; 200K keeps a full run
+  # well under an hour.
+  n: 200000
+  n_queries: 1000
+  dim: 128
+  noise: 0.05
+  k_intrinsic: [2, 8, 32, 128]
+  contrast_sample: 10000
+  stop_above_recall: 0.995
+  hnsw:
+    M: [16]
+    ef_construction: 200
+    ef_search: [10, 20, 40, 80, 160, 320, 640]
+  ivfflat:
+    nlist: [1024]
+    nprobe: [1, 2, 4, 8, 16, 32, 64, 128, 256, 512]
+  ivfpq:
+    m: [16]
+    nlist: [1024]
+    nbits: 8
+    nprobe: [1, 2, 4, 8, 16, 32, 64, 128, 256, 512]

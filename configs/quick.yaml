@@ -1,0 +1,89 @@
+# Quick run: same code, same protocol, smaller everything.
+#
+# Target: `bash run_all.sh --quick` finishes in under 15 minutes on a laptop,
+# including figures and tables. It uses the first 100K vectors of each dataset
+# (ground truth recomputed exactly for the subset, and cached), one build
+# configuration per index, a coarse parameter grid, and a single timing repeat
+# with a short budget.
+#
+# Quick numbers are NOT the numbers in the report. They exist to prove the
+# pipeline runs end to end.
+
+name: quick
+seed: 42
+k: 10
+tune_queries: 1000
+test_queries: 1000
+
+timing:
+  repeats: 1
+  warmup: true
+  max_timed_queries: 500
+  min_timed_queries: 100
+  time_budget_s: 3.0
+  check_every: 16
+  time_on: tune
+
+build:
+  threads: 0
+
+datasets:
+  sift:
+    path: data/sift-128-euclidean.hdf5
+    normalize: false
+    n_vectors: 100000
+  glove:
+    path: data/glove-100-angular.hdf5
+    normalize: true
+    n_vectors: 100000
+
+part2:
+  stop_above_recall: 0.98
+  hnsw:
+    M: [16]
+    ef_construction: 100
+    ef_search: [10, 20, 40, 80, 160]
+  ivfflat:
+    nlist: [1024]
+    nprobe: [1, 4, 16, 64, 128]
+  ivfpq:
+    m:
+      sift: [16]
+      glove: [20]
+    nlist: [1024]
+    nbits: 8
+    nprobe: [1, 4, 16, 64, 128]
+    refine: true
+    refine_k: 100
+
+part3:
+  dataset: sift
+  sizes: [25000, 50000, 100000]
+  nlist_multiplier: 4.0
+  hnsw:
+    M: 16
+    ef_construction: 100
+  ef_search: [10, 40, 160]
+  nprobe: [1, 4, 16, 64]
+  stop_above_recall: 0.98
+
+part4:
+  n: 20000
+  n_queries: 400
+  dim: 128
+  noise: 0.05
+  k_intrinsic: [2, 8, 32, 128]
+  contrast_sample: 5000
+  stop_above_recall: 0.98
+  hnsw:
+    M: [16]
+    ef_construction: 100
+    ef_search: [10, 40, 160]
+  ivfflat:
+    nlist: [256]
+    nprobe: [1, 4, 16, 64, 128]
+  ivfpq:
+    m: [16]
+    nlist: [256]
+    nbits: 8
+    nprobe: [1, 4, 16, 64, 128]
