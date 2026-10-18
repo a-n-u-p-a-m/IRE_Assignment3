@@ -1,0 +1,237 @@
+"""Tests for the pieces between the measurement and the report.
+
+These are cheap guards against the failure modes that would silently corrupt
+numbers: a Pareto frontier that keeps dominated points, an interpolation that
+extrapolates past the sweep, a results file that loses a row, a synthetic
+generator that is not actually seeded, or an index wrapper that returns ids in
+the wrong frame of reference.
+"""
+
+import json
+import os
+
+import numpy as np
+import pytest
+
+from annbench.datasets import Dataset, compute_ground_truth, split_queries, subsample
+from annbench.frontier import pareto_mask, qps_at_recall
+from annbench.indexes import divisors, make_index
+from annbench.recall import recall_at_k, true_distances
+from annbench.results import COLUMNS, ResultsWriter, make_row
+from annbench.synthetic import make_subspace_dataset, relative_contrast
+
+
+# ----------------------------------------------------------------------
+# frontier
+# ----------------------------------------------------------------------
+def test_pareto_drops_dominated_points():
+    recall = np.array([0.5, 0.7, 0.7, 0.9])
+    qps = np.array([1000.0, 800.0, 500.0, 100.0])
+    # (0.7, 500) is dominated by (0.7, 800); everything else is on the curve.
+    assert pareto_mask(recall, qps).tolist() == [True, True, False, True]
+
+
+def test_pareto_handles_a_single_point():
+    assert pareto_mask([0.9], [10.0]).tolist() == [True]
+
+
+def test_qps_at_recall_interpolates_between_bracketing_points():
+    recall = np.array([0.90, 0.96])
+    qps = np.array([1000.0, 100.0])
+    q = qps_at_recall(recall, qps, 0.95)
+    assert 100.0 < q < 1000.0
+    # log-linear: 5/6 of the way from 0.90 to 0.96
+    assert q == pytest.approx(10 ** (3 - (5 / 6) * 1), rel=1e-6)
+
+
+def test_qps_at_recall_returns_nan_when_target_never_reached():
+    assert np.isnan(qps_at_recall([0.5, 0.8], [100.0, 50.0], 0.95))
+
+
+def test_qps_at_recall_floor_is_a_measured_point():
+    q = qps_at_recall([0.90, 0.96], [1000.0, 100.0], 0.95, method="floor")
+    assert q == 100.0
+
+
+# ----------------------------------------------------------------------
+# results store
+# ----------------------------------------------------------------------
+def test_results_roundtrip_and_resume(tmp_path):
+    path = str(tmp_path / "results.csv")
+    w = ResultsWriter(path)
+    w.write(experiment="part2", dataset="sift", index_type="HNSW",
+            params_json=json.dumps({"M": 16}), search_param=64, qps_median=123.0)
+    assert w.has(experiment="part2", dataset="sift", index_type="HNSW",
+                 params_json=json.dumps({"M": 16}), search_param=64)
+    assert not w.has(experiment="part2", dataset="sift", index_type="HNSW",
+                     params_json=json.dumps({"M": 16}), search_param=128)
+
+    w2 = ResultsWriter(path)  # fresh writer sees the existing row
+    assert w2.has(experiment="part2", dataset="sift", index_type="HNSW",
+                  params_json=json.dumps({"M": 16}), search_param=64)
+
+    from annbench.results import load_results
+    df = load_results(path)
+    assert len(df) == 1 and df["qps_median"].iloc[0] == 123.0
+
+
+def test_force_truncates(tmp_path):
+    path = str(tmp_path / "r.csv")
+    ResultsWriter(path).write(experiment="part2", dataset="sift", index_type="HNSW")
+    w = ResultsWriter(path, force=True)
+    assert not w.has(experiment="part2", dataset="sift", index_type="HNSW")
+
+
+def test_unknown_column_is_rejected():
+    with pytest.raises(KeyError):
+        make_row(not_a_column=1)
+    assert set(make_row().keys()) == set(COLUMNS)
+
+
+# ----------------------------------------------------------------------
+# datasets
+# ----------------------------------------------------------------------
+def _toy_dataset(n=500, d=8, nq=20, seed=0):
+    rng = np.random.default_rng(seed)
+    train = rng.standard_normal((n, d)).astype(np.float32)
+    queries = rng.standard_normal((nq, d)).astype(np.float32)
+    ids, dists = compute_ground_truth(train, queries, k=10)
+    return Dataset(name="toy", train=train, queries=queries, gt_ids=ids, gt_dists=dists)
+
+
+def test_split_queries_takes_first_and_last_halves():
+    ds = _toy_dataset(nq=20)
+    tune = split_queries(ds, "tune", half=10)
+    test = split_queries(ds, "test", half=10)
+    assert np.array_equal(tune.queries, ds.queries[:10])
+    assert np.array_equal(test.queries, ds.queries[10:])
+    # the ground truth must be sliced with the queries, not left whole
+    assert np.array_equal(test.gt_ids, ds.gt_ids[10:])
+
+
+def test_subsample_recomputes_ground_truth_in_the_subset_frame():
+    ds = _toy_dataset(n=500)
+    sub = subsample(ds, 100, seed=0)
+    assert sub.n == 100
+    assert sub.gt_ids.max() < 100  # ids index into the subset, not the original
+    # and the recomputed ground truth is genuinely exact for the subset
+    exact = true_distances(sub.queries, sub.train, sub.gt_ids)
+    assert np.allclose(exact[:, :10], sub.gt_dists[:, :10], rtol=1e-5, atol=1e-5)
+
+
+# ----------------------------------------------------------------------
+# indexes
+# ----------------------------------------------------------------------
+def test_divisors_rejects_illegal_pq_m_for_glove():
+    assert 16 in divisors(128) and 32 in divisors(128)
+    assert 16 not in divisors(100)      # the GloVe trap
+    assert {4, 10, 20, 25, 50} <= set(divisors(100))
+
+
+def test_ivfpq_rejects_m_that_does_not_divide_d():
+    ds = _toy_dataset(n=400, d=100)
+    idx = make_index("IVF-PQ", 100, nlist=8, m=16, build_threads=1)
+    with pytest.raises(ValueError, match="divide"):
+        idx.build(ds.train)
+
+
+@pytest.mark.parametrize(
+    "kind,params,param_value",
+    [
+        ("Flat", {}, None),
+        ("HNSW", {"M": 8, "ef_construction": 60}, 200),
+        ("IVF-Flat", {"nlist": 16}, 16),
+        ("IVF-PQ", {"nlist": 16, "m": 4, "nbits": 6}, 16),
+    ],
+)
+def test_every_index_finds_its_own_neighbours(kind, params, param_value):
+    """With the search parameter wide open, every index should be close to
+    exact on easy low-dimensional data. This catches id-mapping bugs, metric
+    mix-ups and wrappers that silently return nothing."""
+    ds = _toy_dataset(n=1000, d=8, nq=25)
+    idx = make_index(kind, ds.dim, seed=0, build_threads=1, **params)
+    idx.build(ds.train)
+    if param_value is not None:
+        idx.set_search_param(param_value)
+    ids, _ = idx.search(ds.queries, 10, threads=1)
+    exact = true_distances(ds.queries, ds.train, ids)
+    r = recall_at_k(ids, ds.gt_ids, ds.gt_dists, exact, k=10)
+    floor = 0.99 if kind in ("Flat", "HNSW", "IVF-Flat") else 0.5
+    assert r >= floor, f"{kind} only reached recall {r:.3f}"
+
+
+def test_search_one_and_batch_agree():
+    ds = _toy_dataset(n=800, d=8, nq=10)
+    idx = make_index("HNSW", ds.dim, M=8, ef_construction=60, build_threads=1)
+    idx.build(ds.train)
+    idx.set_search_param(100)
+    batch_ids, _ = idx.search(ds.queries, 10, threads=1)
+    for i in range(ds.n_queries):
+        one_ids, _ = idx.search_one(ds.queries[i], 10)
+        assert set(one_ids.tolist()) == set(batch_ids[i].tolist())
+
+
+def test_index_reports_plausible_size():
+    ds = _toy_dataset(n=1000, d=8)
+    flat = make_index("Flat", 8, build_threads=1)
+    flat.build(ds.train)
+    # 8 float32 per vector = 32 bytes, plus a small header
+    assert 32 <= flat.bytes_per_vector() < 64
+
+
+# ----------------------------------------------------------------------
+# synthetic generator (Part 4)
+# ----------------------------------------------------------------------
+def test_generator_is_seeded():
+    a = make_subspace_dataset(n=200, n_queries=10, dim=16, k_intrinsic=4, seed=7, kgt=5)
+    b = make_subspace_dataset(n=200, n_queries=10, dim=16, k_intrinsic=4, seed=7, kgt=5)
+    assert np.array_equal(a.train, b.train)
+    assert np.array_equal(a.queries, b.queries)
+
+
+def test_generator_varies_with_seed():
+    a = make_subspace_dataset(n=200, n_queries=10, dim=16, k_intrinsic=4, seed=1, kgt=5)
+    b = make_subspace_dataset(n=200, n_queries=10, dim=16, k_intrinsic=4, seed=2, kgt=5)
+    assert not np.array_equal(a.train, b.train)
+
+
+def test_ambient_dimension_is_constant_across_conditions():
+    """The whole point of the design: only intrinsic dimension changes."""
+    shapes = {
+        k: make_subspace_dataset(n=100, n_queries=5, dim=32, k_intrinsic=k, seed=0, kgt=5).train.shape
+        for k in (2, 8, 32)
+    }
+    assert len(set(shapes.values())) == 1
+
+
+def test_low_intrinsic_dimension_raises_contrast():
+    """Sanity check on the mechanism under test: fewer effective directions
+    means the nearest neighbour stands out more."""
+    low = make_subspace_dataset(n=5000, n_queries=100, dim=64, k_intrinsic=2, noise=0.05, seed=0, kgt=10)
+    high = make_subspace_dataset(n=5000, n_queries=100, dim=64, k_intrinsic=64, noise=0.05, seed=0, kgt=10)
+    assert np.median(relative_contrast(low, sample=2000)) > np.median(
+        relative_contrast(high, sample=2000)
+    )
+
+
+def test_part4_respects_the_500k_cap():
+    """The brief caps synthetic data at 500K vectors; the config must comply."""
+    import yaml
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    for name in ("full", "quick"):
+        with open(os.path.join(here, "configs", f"{name}.yaml"), encoding="utf-8") as f:
+            cfg = yaml.safe_load(f)
+        assert cfg["part4"]["n"] <= 500_000
+
+
+def test_configs_use_legal_pq_m_values():
+    """Guards the GloVe d=100 trap at config level, before any long run."""
+    import yaml
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    dims = {"sift": 128, "glove": 100}
+    for name in ("full", "quick"):
+        with open(os.path.join(here, "configs", f"{name}.yaml"), encoding="utf-8") as f:
+            cfg = yaml.safe_load(f)
+        for dataset, ms in cfg["part2"]["ivfpq"]["m"].items():
+            for m in ms:
+                assert dims[dataset] % m == 0, f"{name}: m={m} illegal for {dataset}"
