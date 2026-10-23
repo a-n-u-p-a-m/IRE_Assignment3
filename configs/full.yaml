@@ -72,7 +72,11 @@ part4:
   n: 200000
   n_queries: 1000
   dim: 128
-  noise: 0.05
+  # Noise norm as a FRACTION of the signal norm. Signal power is held at 1
+  # for every k_intrinsic, so this means the same thing in every condition.
+  # (Was `noise`, a per-coordinate sigma, which made the signal-to-noise
+  # ratio vary 8x across conditions and confounded the experiment.)
+  noise_frac: 0.05
   k_intrinsic: [2, 8, 32, 128]
   contrast_sample: 10000
   stop_above_recall: 0.995

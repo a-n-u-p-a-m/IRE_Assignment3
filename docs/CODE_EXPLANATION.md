@@ -289,22 +289,66 @@ the arithmetic changed too.
 
 **The design.** Ambient dimension stays at 128 in every condition. Data is
 generated on a random k-dimensional linear subspace plus a small isotropic
-noise floor:
+noise floor. The obvious way to write that is wrong, and the way it is wrong is
+worth recording, because the first run of this experiment produced a result
+that contradicted the hypothesis for a reason that turned out to be the
+generator rather than the indexes.
+
+The natural version:
 
 ```
-X = C·Bᵀ + σ·E,    C ~ N(0, I_k),   B a random orthonormal d×k basis
+X = C·Bᵀ + σ·E,    C ~ N(0, I_k),   B a random orthonormal d×k basis   ← WRONG
 ```
 
-Every condition has identical vector size, distance cost, index memory and PQ
-layout. The only thing that changes is k. `k = 128 = d` is the **control**: the
-subspace is the whole space and the generator degenerates to isotropic Gaussian
-data. `test_ambient_dimension_is_constant_across_conditions` asserts the
-invariance the design depends on.
+Because `B` is orthonormal, `E‖C·Bᵀ‖² = k`. **Signal power grows with k while
+the noise stays fixed at σ²d**, so sweeping `k_intrinsic` sweeps three things
+at once: the number of effective directions (intended), the signal-to-noise
+ratio (an 8× swing from k=2 to k=128), and the overall scale of the data. That
+breaks the brief's one-variable rule, and it is not a technicality — it
+inverted the measured result. At k=2 the true in-subspace neighbour separation
+(0.692) fell *below* the noise floor (0.800), so the nearest neighbour was
+decided by the noise rather than by the subspace. Relative contrast came out
+non-monotonic, peaking at k=8 (2.75 → 3.18 → 1.69 → 1.27), and IVF-PQ scored
+*worse* at k=2 (ceiling 0.42) than at k=8 (0.78) — because the sub-quantisers
+faithfully encoded the 2-d structure and discarded exactly the noise that
+carried the ranking.
 
-The noise floor matters: at σ = 0 and k = 2 the data is a genuine 2-dimensional
-sheet and the nearest neighbour is trivially findable. A small σ keeps every
-condition full-rank, so the difference is one of *effective* dimensionality
-rather than of rank.
+The corrected version draws coefficients with variance `1/k`:
+
+```
+X = C·Bᵀ + (η/√d)·E,    C ~ N(0, I_k / k),   E ~ N(0, I_d)
+```
+
+so `E‖C·Bᵀ‖² = 1` for every k, and `η` is the noise norm **as a fraction of the
+signal norm** — a dimensionless quantity meaning the same thing in every
+condition. Contrast then falls monotonically as predicted (18.7 → 5.2 → 1.85 →
+1.31 at n = 200 000). Every condition now has identical vector size, distance
+cost, index memory, PQ layout, signal power and signal-to-noise ratio; only the
+number of directions changes. `k = 128 = d` is the **control**: the subspace is
+the whole space and the generator degenerates to isotropic Gaussian data.
+
+Three tests pin this down:
+`test_ambient_dimension_is_constant_across_conditions`,
+`test_signal_power_is_constant_across_intrinsic_dimension` (the one that
+catches a regression to the broken version — note it asserts on mean *squared*
+norm, since the mean norm is legitimately below 1 at small k by Jensen), and
+`test_contrast_falls_monotonically_with_intrinsic_dimension`, which asserts the
+whole ordering rather than just the endpoints, because the broken version got
+the endpoints right.
+
+The noise floor itself matters: at η = 0 and k = 2 the data is genuinely
+rank-2, and the comparison would be about rank rather than about *effective*
+dimensionality. A small η keeps every condition full-rank.
+
+**One caveat the report should state rather than hide.** At the lowest k the
+noise floor still bounds the nearest-neighbour distance, because 200 000 points
+packed into 2 effective dimensions sit far closer together than any noise floor
+that leaves the data full-rank. At η = 0.05 and n = 200 000 the mean NN
+distance is 0.90× the noise floor at k = 2, rising to 3.9× at k = 8 and 15× at
+k = 128. `results/tables/part4_contrast.md` reports this ratio per condition.
+It is a property of low-dimensional data with many points, not an artefact that
+can be tuned away — driving η low enough to clear it at k = 2 would make the
+data effectively rank-2 again.
 
 The basis uses a QR decomposition with the sign of `diag(R)` folded in, so the
 basis is a deterministic function of the seed across LAPACK versions — without

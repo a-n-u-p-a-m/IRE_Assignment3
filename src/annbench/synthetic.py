@@ -17,20 +17,50 @@ too.
 
 So instead the **ambient dimension stays at 128 for every condition** and the
 data is generated on a random k-dimensional linear subspace of that space, plus
-a small isotropic noise floor:
+a small isotropic noise floor.
 
-    X = C B^T + sigma * E,     C ~ N(0, I_k),  B a random orthonormal d x k basis
+Normalising the signal power — and why the obvious version is wrong
+-------------------------------------------------------------------
+The natural way to write this generator is
 
-Every condition therefore has identical vector size, identical distance cost,
-identical index memory and identical PQ layout.  The only thing that changes is
-how many directions the data lives in — which is exactly the property under
-test.  ``k_intrinsic == dim`` is the **control**: the subspace is the whole
-space, so the generator degenerates to isotropic Gaussian data.
+    X = C B^T + sigma * E,     C ~ N(0, I_k),  B orthonormal d x k    (WRONG)
 
-The noise floor matters: with sigma = 0 and k = 2, the data is a genuinely
-2-dimensional sheet and the nearest neighbour is trivially findable.  A small
-sigma keeps every condition full-rank so the difference is one of *effective*
-dimensionality rather than of rank.
+and it is subtly broken.  Because ``B`` is orthonormal, ``E||C B^T||^2 = k``,
+so the **signal power grows with k** while the noise stays at ``sigma^2 d``.
+Sweeping k then changes three things at once: the number of effective
+directions (intended), the signal-to-noise ratio (an 8x swing from k=2 to
+k=128), and the overall scale of the data.  That breaks the brief's
+one-variable-at-a-time rule, and it is not academic — it inverts the result.
+At k=2 the true in-subspace neighbour separation falls *below* the noise floor,
+so the nearest neighbour is decided by the noise rather than by the subspace.
+Relative contrast then comes out non-monotonic (it peaks at k=8), and IVF-PQ
+scores *worse* at k=2 than at k=8, because the sub-quantisers faithfully encode
+the 2-d structure and discard exactly the noise that carried the ranking.
+
+So the coefficients are drawn with variance ``1/k``:
+
+    X = C B^T + (eta / sqrt(d)) * E,   C ~ N(0, I_k / k),  E ~ N(0, I_d)
+
+which gives ``E||C B^T||^2 = 1`` for every k, and makes ``eta`` the norm of the
+noise **as a fraction of the signal norm** — a dimensionless quantity that
+means the same thing in every condition.  Every condition now has identical
+vector size, distance cost, index memory, PQ layout, signal power and
+signal-to-noise ratio.  The only thing that changes is how many directions the
+data lives in.  ``k_intrinsic == dim`` is the **control**: the subspace is the
+whole space, so the generator degenerates to isotropic Gaussian data.
+
+The noise floor itself matters: at ``eta = 0`` and k = 2 the data is a
+genuinely rank-2 sheet, and the comparison would be about rank rather than
+about *effective* dimensionality.  A small ``eta`` keeps every condition
+full-rank.
+
+One honest caveat, which the report should state rather than hide: at the
+lowest k the noise floor still bounds the nearest-neighbour distance, because
+200 000 points packed into 2 effective dimensions sit far closer together than
+any noise floor that leaves the data full-rank.  At ``eta = 0.05``, k = 2 and
+n = 200 000, the mean NN distance is ~0.9x the noise floor; by k = 8 it is
+~3.9x and the signal dominates.  This is a property of low-dimensional data
+with many points, not an artefact that can be tuned away.
 
 Everything is driven by a ``numpy`` ``default_rng(seed)``, so a given seed
 reproduces byte-identical data on any machine.
@@ -60,12 +90,16 @@ def make_subspace_dataset(
     n_queries: int = 1_000,
     dim: int = 128,
     k_intrinsic: int = 32,
-    noise: float = 0.05,
+    noise_frac: float = 0.05,
     seed: int = 0,
     kgt: int = 100,
     name: str | None = None,
 ) -> Dataset:
     """Vectors on a random ``k_intrinsic``-dimensional subspace of ``dim``.
+
+    Signal power is held at 1 for every ``k_intrinsic`` (see the module
+    docstring), so ``noise_frac`` is the noise norm as a fraction of the signal
+    norm and means the same thing in every condition.
 
     Queries are drawn from the *same* distribution as the database (this
     experiment varies geometry, not drift) but are not members of it.  Ground
@@ -73,15 +107,24 @@ def make_subspace_dataset(
     """
     if not 1 <= k_intrinsic <= dim:
         raise ValueError(f"k_intrinsic must be in [1, {dim}], got {k_intrinsic}")
+    if noise_frac < 0:
+        raise ValueError(f"noise_frac must be >= 0, got {noise_frac}")
 
     rng = np.random.default_rng(seed)
     basis = _orthonormal_basis(dim, k_intrinsic, rng)
 
     total = n + n_queries
-    coeffs = rng.standard_normal((total, k_intrinsic)).astype(np.float32)
+    # Variance 1/k per coefficient, so E||signal||^2 = 1 regardless of k.
+    coeffs = (
+        rng.standard_normal((total, k_intrinsic)) / np.sqrt(k_intrinsic)
+    ).astype(np.float32)
     x = coeffs @ basis.T.astype(np.float32)
-    if noise > 0:
-        x += (noise * rng.standard_normal((total, dim))).astype(np.float32)
+    if noise_frac > 0:
+        # Scaled by 1/sqrt(d) so E||noise||^2 = noise_frac^2, i.e. the noise
+        # norm is noise_frac times the signal norm in every condition.
+        x += (
+            (noise_frac / np.sqrt(dim)) * rng.standard_normal((total, dim))
+        ).astype(np.float32)
     x = np.ascontiguousarray(x, dtype=np.float32)
 
     train = x[:n]
@@ -97,7 +140,7 @@ def make_subspace_dataset(
         normalized=False,
         note=(
             f"synthetic: n={n}, dim={dim}, k_intrinsic={k_intrinsic}, "
-            f"noise={noise}, seed={seed}"
+            f"noise_frac={noise_frac}, unit signal power, seed={seed}"
             + (" (CONTROL: isotropic)" if k_intrinsic == dim else "")
         ),
     )

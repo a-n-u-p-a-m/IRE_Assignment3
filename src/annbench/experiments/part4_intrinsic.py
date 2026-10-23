@@ -45,7 +45,17 @@ def main(argv=None) -> int:
     n = int(p4["n"])
     n_queries = int(p4["n_queries"])
     dim = int(p4["dim"])
-    noise = float(p4["noise"])
+    # Renamed from `noise` when the generator was corrected to hold signal
+    # power constant: the value is now a fraction of the signal norm, not a
+    # per-coordinate sigma, so an old config must fail loudly rather than be
+    # reinterpreted silently.
+    if "noise" in p4 and "noise_frac" not in p4:
+        raise KeyError(
+            "part4.noise was replaced by part4.noise_frac (noise norm as a "
+            "fraction of the signal norm). Update the config; the two are not "
+            "the same quantity."
+        )
+    noise_frac = float(p4["noise_frac"])
     ks = [int(x) for x in p4["k_intrinsic"]]
     build_threads = int((cfg.get("build", {}) or {}).get("threads", 0))
     timed_on = (cfg.get("timing", {}) or {}).get("time_on", "tune")
@@ -62,18 +72,29 @@ def main(argv=None) -> int:
         print(f"\n=== Part 4: {tag} ===")
         ds = make_subspace_dataset(
             n=n, n_queries=n_queries, dim=dim, k_intrinsic=k_int,
-            noise=noise, seed=cfg.seed, kgt=max(100, cfg.k),
+            noise_frac=noise_frac, seed=cfg.seed, kgt=max(100, cfg.k),
         )
         print(f"  {ds!r}")
 
         rc = relative_contrast(ds, sample=int(p4.get("contrast_sample", 10000)), seed=cfg.seed)
+        # How far the true neighbour sits above the noise floor. Below ~1 the
+        # nearest neighbour is decided by the noise rather than by the
+        # subspace, which is a real property of low k at large n and is
+        # reported rather than tuned away.
+        nn_dist = float(np.sqrt(ds.gt_dists[:, 0]).mean())
+        noise_floor = noise_frac * np.sqrt(2.0)
         contrast_rows.append(
             dict(k_intrinsic=k_int, control=is_control,
                  rc_mean=float(np.mean(rc)), rc_median=float(np.median(rc)),
-                 rc_p10=float(np.percentile(rc, 10)), rc_p90=float(np.percentile(rc, 90)))
+                 rc_p10=float(np.percentile(rc, 10)), rc_p90=float(np.percentile(rc, 90)),
+                 nn_dist=nn_dist, noise_floor=float(noise_floor),
+                 nn_over_floor=nn_dist / noise_floor if noise_floor else float("inf"))
         )
-        print(f"  relative contrast: median {np.median(rc):.3f} "
-              f"(p10 {np.percentile(rc, 10):.3f}, p90 {np.percentile(rc, 90):.3f})")
+        msg = (f"  relative contrast: median {np.median(rc):.3f} "
+               f"(p10 {np.percentile(rc, 10):.3f}, p90 {np.percentile(rc, 90):.3f})")
+        if noise_floor:
+            msg += f"; NN distance {nn_dist:.4f} = {nn_dist / noise_floor:.2f}x the noise floor"
+        print(msg)
 
         half = n_queries // 2
         ds_tune = split_queries(ds, "tune", half=half)
@@ -127,11 +148,23 @@ def main(argv=None) -> int:
             "mean nothing is distinctly closest, which is the regime where partition-based\n"
             "pruning stops working.\n\n"
         )
-        f.write("| k_intrinsic | control | median RC | p10 | p90 |\n|---|---|---|---|---|\n")
+        f.write(
+            "`NN / noise floor` is the mean true nearest-neighbour distance divided by\n"
+            "the expected distance between two noise vectors. Below ~1 the nearest\n"
+            "neighbour is determined by the noise rather than by the subspace, which\n"
+            "happens at the lowest k because many points packed into few effective\n"
+            "dimensions sit closer together than any noise floor that keeps the data\n"
+            "full-rank.\n\n"
+        )
+        f.write(
+            "| k_intrinsic | control | median RC | p10 | p90 | NN dist | NN / noise floor |\n"
+            "|---|---|---|---|---|---|---|\n"
+        )
         for r in contrast_rows:
             f.write(
                 f"| {r['k_intrinsic']} | {'yes' if r['control'] else ''} | "
-                f"{r['rc_median']:.3f} | {r['rc_p10']:.3f} | {r['rc_p90']:.3f} |\n"
+                f"{r['rc_median']:.3f} | {r['rc_p10']:.3f} | {r['rc_p90']:.3f} | "
+                f"{r['nn_dist']:.4f} | {r['nn_over_floor']:.2f} |\n"
             )
     with open(os.path.join(args.tables, "part4_contrast.json"), "w", encoding="utf-8") as f:
         json.dump(contrast_rows, f, indent=2)

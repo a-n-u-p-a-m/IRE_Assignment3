@@ -232,14 +232,56 @@ def test_ambient_dimension_is_constant_across_conditions():
     assert len(set(shapes.values())) == 1
 
 
-def test_low_intrinsic_dimension_raises_contrast():
-    """Sanity check on the mechanism under test: fewer effective directions
-    means the nearest neighbour stands out more."""
-    low = make_subspace_dataset(n=5000, n_queries=100, dim=64, k_intrinsic=2, noise=0.05, seed=0, kgt=10)
-    high = make_subspace_dataset(n=5000, n_queries=100, dim=64, k_intrinsic=64, noise=0.05, seed=0, kgt=10)
-    assert np.median(relative_contrast(low, sample=2000)) > np.median(
-        relative_contrast(high, sample=2000)
-    )
+def test_signal_power_is_constant_across_intrinsic_dimension():
+    """The invariant the whole Part 4 design rests on.
+
+    Drawing coefficients as N(0, I_k) makes signal power grow as k, so sweeping
+    k_intrinsic would also sweep the signal-to-noise ratio and the data scale -
+    three variables, not one. Coefficients are drawn with variance 1/k instead,
+    which pins E||signal||^2 at 1. This test is what catches a regression to
+    the broken version.
+
+    The invariant is on the mean *squared* norm (the power). The mean norm
+    itself is slightly below 1 at small k by Jensen's inequality -- for k=2 it
+    is Gamma(1.5) = 0.886 -- which is a property of the chi distribution, not a
+    scaling bug.
+    """
+    power = {}
+    for k in (2, 8, 32, 128):
+        ds = make_subspace_dataset(n=4000, n_queries=50, dim=128, k_intrinsic=k,
+                                   noise_frac=0.0, seed=0, kgt=10)
+        power[k] = float((ds.train.astype(np.float64) ** 2).sum(axis=1).mean())
+    assert max(power.values()) / min(power.values()) < 1.05, power
+    assert all(0.95 < v < 1.05 for v in power.values()), power
+
+
+def test_noise_frac_is_a_fraction_of_the_signal_norm():
+    """noise_frac must mean the same thing in every condition."""
+    for k in (2, 32, 128):
+        clean = make_subspace_dataset(n=3000, n_queries=20, dim=128, k_intrinsic=k,
+                                      noise_frac=0.0, seed=1, kgt=5)
+        noisy = make_subspace_dataset(n=3000, n_queries=20, dim=128, k_intrinsic=k,
+                                      noise_frac=0.25, seed=1, kgt=5)
+        added = np.linalg.norm(noisy.train - clean.train, axis=1).mean()
+        signal = np.linalg.norm(clean.train, axis=1).mean()
+        assert abs(added / signal - 0.25) < 0.05, (k, added / signal)
+
+
+def test_contrast_falls_monotonically_with_intrinsic_dimension():
+    """The mechanism under test, and the prediction in hypothesis.md.
+
+    With signal power held constant, more effective directions means distances
+    concentrate and the nearest neighbour stands out less. The broken
+    generator produced a non-monotonic curve peaking at k=8, so this asserts
+    the whole ordering rather than just the endpoints.
+    """
+    contrasts = []
+    for k in (2, 8, 32, 128):
+        ds = make_subspace_dataset(n=20000, n_queries=200, dim=128, k_intrinsic=k,
+                                   noise_frac=0.05, seed=0, kgt=10)
+        contrasts.append(float(np.median(relative_contrast(ds, sample=5000, seed=0))))
+    assert contrasts == sorted(contrasts, reverse=True), contrasts
+    assert contrasts[0] > 2 * contrasts[-1], contrasts
 
 
 def test_part4_respects_the_500k_cap():
@@ -250,6 +292,29 @@ def test_part4_respects_the_500k_cap():
         with open(os.path.join(here, "configs", f"{name}.yaml"), encoding="utf-8") as f:
             cfg = yaml.safe_load(f)
         assert cfg["part4"]["n"] <= 500_000
+
+
+def test_part4_configs_use_the_renamed_noise_key():
+    """`noise` and `noise_frac` are different quantities; a stale config must
+    not be silently reinterpreted."""
+    import yaml
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    for name in ("full", "quick"):
+        with open(os.path.join(here, "configs", f"{name}.yaml"), encoding="utf-8") as f:
+            cfg = yaml.safe_load(f)
+        assert "noise_frac" in cfg["part4"], name
+        assert "noise" not in cfg["part4"], name
+
+
+def test_part4_has_a_control_condition():
+    """The brief requires an unchanged control: k_intrinsic == dim."""
+    import yaml
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    for name in ("full", "quick"):
+        with open(os.path.join(here, "configs", f"{name}.yaml"), encoding="utf-8") as f:
+            cfg = yaml.safe_load(f)["part4"]
+        assert cfg["dim"] in cfg["k_intrinsic"], name
+        assert len(cfg["k_intrinsic"]) >= 4, name
 
 
 def test_configs_use_legal_pq_m_values():
