@@ -101,6 +101,16 @@ def main(argv=None) -> int:
         ds_test = split_queries(ds, "test", half=half)
 
         specs = []
+        # Exact search, measured in the same conditions as the indexes.
+        # Without it the headline question of this experiment -- at what
+        # intrinsic dimension does an approximate index stop being worth
+        # using? -- can only be answered against a number scaled from another
+        # experiment on a different dataset. The reference costs one row per
+        # condition and makes "slower than brute force" a measurement rather
+        # than an inference. Its recall is 1.0 by construction, so it plots as
+        # the point every approximate curve is trying to beat.
+        if p4.get("exact_baseline", True):
+            specs.append(("Flat", {}, [None]))
         for M in p4.get("hnsw", {}).get("M", [16]):
             specs.append(("HNSW",
                           {"M": int(M),

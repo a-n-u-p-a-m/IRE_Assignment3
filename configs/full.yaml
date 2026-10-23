@@ -78,6 +78,9 @@ part4:
   # ratio vary 8x across conditions and confounded the experiment.)
   noise_frac: 0.05
   k_intrinsic: [2, 8, 32, 128]
+  # Measure exact search in each condition too, so "the approximate index
+  # is slower than brute force" is a measurement rather than an inference.
+  exact_baseline: true
   contrast_sample: 10000
   stop_above_recall: 0.995
   hnsw:

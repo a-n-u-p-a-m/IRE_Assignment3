@@ -175,12 +175,21 @@ def plot_part4(
     degradation is visible.  Right: the summary statistic — QPS needed to hit
     the recall target, and the recall ceiling actually reached — against the
     property being varied.
+
+    Exact search is pulled out of the per-index loops and drawn as a reference
+    on both panels rather than as a fourth competitor, because it is the line
+    that decides whether an approximate index is worth using at all: where a
+    curve falls below it, the index is slower than brute force *and* less
+    accurate, which is the central result of this experiment at high intrinsic
+    dimension.
     """
     from .frontier import qps_at_recall
 
     sub = df[df["experiment"] == "part4"].copy()
     sub["k_intrinsic"] = sub["variant"].str.extract(r"k_intrinsic=(\d+)").astype(float)
 
+    exact = sub[sub["index_type"] == "Flat"]
+    sub = sub[sub["index_type"] != "Flat"]
     kinds = sorted(sub["index_type"].unique())
     fig, axes = plt.subplots(1, 2, figsize=(11, 4.3))
     ax1, ax2 = axes
@@ -204,6 +213,15 @@ def plot_part4(
                 color=c,
                 label=f"{kind}, k={int(kint)}",
             )
+
+    # Exact search: one point per condition, all at recall 1.0. Their spread is
+    # pure measurement noise (same n, same d in every condition), so the band
+    # they span doubles as a visible noise floor for the whole panel.
+    if not exact.empty:
+        ax1.scatter(exact["recall_test"], exact["qps_median"], marker="x", s=42,
+                    color=INDEX_COLOURS["Flat"], zorder=5, label="exact (brute force)")
+        ax1.axhspan(float(exact["qps_median"].min()), float(exact["qps_median"].max()),
+                    color=INDEX_COLOURS["Flat"], alpha=0.10, zorder=0)
 
     ax1.set_xscale("linear")
     ax1.set_yscale("log")
@@ -233,6 +251,15 @@ def plot_part4(
                  ms=3, ls="--", lw=1.0, color=colour, alpha=0.55)
     ax3.set_ylabel("best recall@10 reached (dashed)", fontsize=9)
     ax3.set_ylim(0, 1.02)
+
+    # The decision line: below it an approximate index is both slower than a
+    # brute-force scan and less accurate than one, so it has nothing left to
+    # offer. Exact search has no parameter to tune, so this is its measured
+    # throughput, not an interpolation.
+    if not exact.empty:
+        ex = exact.groupby("k_intrinsic")["qps_median"].max().sort_index()
+        ax2.plot(ex.index, ex.to_numpy(), color=INDEX_COLOURS["Flat"], ls=":", lw=1.8,
+                 marker="x", ms=5, label="exact (brute force), recall 1.0")
 
     ax2.set_xscale("log", base=2)
     ax2.set_yscale("log")
