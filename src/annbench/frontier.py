@@ -26,7 +26,36 @@ from __future__ import annotations
 
 import numpy as np
 
-__all__ = ["pareto_mask", "pareto_frontier", "qps_at_recall", "best_rows_at_recall"]
+__all__ = [
+    "pareto_mask",
+    "pareto_frontier",
+    "qps_at_recall",
+    "best_rows_at_recall",
+    "target_is_bracketed",
+]
+
+
+def target_is_bracketed(recall, target: float) -> bool:
+    """True when the sweep has measured points on *both* sides of ``target``.
+
+    Without a point below the target there is nothing to interpolate towards,
+    and :func:`qps_at_recall` falls back to the fastest measured point that
+    clears it.  That number is a **lower bound**, not a measurement: the index
+    might well be faster at a cheaper setting that was never tried.
+
+    This is not hypothetical.  In the Part 4 experiment at the lowest intrinsic
+    dimension, HNSW reaches 0.995 recall at ``efSearch = 10`` -- and hnswlib
+    will not search with ``ef < k``, so for k = 10 that is the cheapest legal
+    setting in existence.  The sweep cannot locate where recall 0.95 sits
+    because the index is already past it at minimum effort.  Plotting that
+    point like any other would overstate what was measured, so callers use
+    this to mark it.
+    """
+    recall = np.asarray(recall, dtype=float)
+    recall = recall[np.isfinite(recall)]
+    if recall.size == 0:
+        return False
+    return bool((recall < target).any() and (recall >= target).any())
 
 
 def pareto_mask(recall, qps) -> np.ndarray:

@@ -24,7 +24,12 @@ import os
 
 import numpy as np
 
-from ..frontier import best_rows_at_recall, pareto_frontier, qps_at_recall
+from ..frontier import (
+    best_rows_at_recall,
+    pareto_frontier,
+    qps_at_recall,
+    target_is_bracketed,
+)
 from ..results import load_results
 
 
@@ -72,7 +77,10 @@ def table_qps_at_recall(df, out_dir: str, targets=(0.90, 0.95)):
                     speed = q / exact_qps if np.isfinite(exact_qps) and exact_qps else float("nan")
                     cfg = json.loads(best["params_json"]) if best is not None else {}
                     cfg_s = ",".join(f"{k}={v}" for k, v in sorted(cfg.items()))
-                    cells += [_fmt(q), f"{_fmt(speed)}x", cfg_s]
+                    # A target met at the cheapest setting in the sweep was
+                    # never bracketed, so the figure is a lower bound.
+                    mark = "" if target_is_bracketed(g["recall_tune"], t) else " (≥)"
+                    cells += [_fmt(q) + mark, f"{_fmt(speed)}x", cfg_s]
                 else:
                     cells += ["not reached", "—", f"best recall {g['recall_test'].max():.3f}"]
             rows.append([dataset, kind] + cells)
@@ -90,7 +98,9 @@ def table_qps_at_recall(df, out_dir: str, targets=(0.90, 0.95)):
             "log-linearly between the two Pareto points bracketing the target. The Pareto "
             "frontier is selected on the tuning queries; `config` is the fastest configuration "
             "that reaches the target. `vs exact` compares against single-query exact search "
-            "from Part 1."
+            "from Part 1. A value marked (≥) is a lower bound: the index already cleared the "
+            "target at the cheapest setting in the sweep, so where it actually crosses was "
+            "never measured."
         ),
     )
 

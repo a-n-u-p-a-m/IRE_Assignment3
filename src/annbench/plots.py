@@ -27,7 +27,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 
-from .frontier import pareto_frontier  # noqa: E402
+from .frontier import pareto_frontier, target_is_bracketed  # noqa: E402
 
 __all__ = [
     "plot_tradeoff",
@@ -232,18 +232,29 @@ def plot_part4(
     ax1.legend(frameon=False, fontsize=7, ncol=2)
 
     ax3 = ax2.twinx()
+    any_unbracketed = False
     for kind in kinds:
-        xs, ys, ceil = [], [], []
+        xs, ys, ceil, bracketed = [], [], [], []
         for kint, g in sub[sub["index_type"] == kind].groupby("k_intrinsic"):
             front = pareto_frontier(g, recall_col="recall_tune")
             xs.append(kint)
             ys.append(qps_at_recall(front["recall_tune"], front["qps_median"], target))
             ceil.append(float(g["recall_test"].max()))
+            bracketed.append(target_is_bracketed(g["recall_tune"], target))
         order = np.argsort(xs)
         xs = np.asarray(xs)[order]
+        ys = np.asarray(ys)[order]
+        bracketed = np.asarray(bracketed)[order]
         colour = INDEX_COLOURS.get(kind)
-        ax2.plot(xs, np.asarray(ys)[order], marker=INDEX_MARKERS.get(kind, "o"),
-                 color=colour, label=f"{kind}: QPS @ recall {target:g}")
+        marker = INDEX_MARKERS.get(kind, "o")
+        ax2.plot(xs, ys, marker=marker, color=colour,
+                 label=f"{kind}: QPS @ recall {target:g}")
+        # Hollow marker where the sweep never measured a point *below* the
+        # target, so this value is a lower bound rather than a measurement.
+        if (~bracketed).any():
+            any_unbracketed = True
+            ax2.scatter(xs[~bracketed], ys[~bracketed], marker=marker, s=90,
+                        facecolors="white", edgecolors=colour, linewidths=1.4, zorder=6)
         # Dashed: the best recall the sweep reached at all.  Where this drops
         # below the target the solid line is necessarily missing — that is the
         # interesting failure, so both belong on one axis pair.
@@ -268,6 +279,11 @@ def plot_part4(
     ax2.set_title(f"Cost of recall {target:g} vs {variant_label}")
     ax2.grid(True, which="both", alpha=0.25, lw=0.5)
     ax2.legend(frameon=False, fontsize=8)
+    if any_unbracketed:
+        ax2.text(0.02, 0.02,
+                 "hollow = target already met at the cheapest setting measured;\n"
+                 "value is a lower bound, not an interpolation",
+                 transform=ax2.transAxes, fontsize=6.5, va="bottom", color="0.35")
 
     if title:
         fig.suptitle(title)

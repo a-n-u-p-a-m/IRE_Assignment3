@@ -328,3 +328,27 @@ def test_configs_use_legal_pq_m_values():
         for dataset, ms in cfg["part2"]["ivfpq"]["m"].items():
             for m in ms:
                 assert dims[dataset] % m == 0, f"{name}: m={m} illegal for {dataset}"
+
+
+def test_target_is_bracketed_detects_an_unmeasured_crossing():
+    """A target met at the cheapest setting in the sweep is a lower bound.
+
+    This is the Part 4 k_intrinsic=2 case: hnswlib refuses ef < k, so at k=10
+    the cheapest legal setting already gives 0.995 recall and the sweep cannot
+    locate where 0.95 sits.
+    """
+    from annbench.frontier import target_is_bracketed
+
+    assert target_is_bracketed([0.90, 0.97], 0.95)          # one each side
+    assert not target_is_bracketed([0.9955], 0.95)          # already past it
+    assert not target_is_bracketed([0.96, 0.99], 0.95)      # never below
+    assert not target_is_bracketed([0.10, 0.50], 0.95)      # never reaches it
+    assert not target_is_bracketed([], 0.95)
+
+
+def test_unbracketed_qps_falls_back_to_a_measured_point():
+    """The fallback must be a real measurement, not an extrapolation."""
+    from annbench.frontier import qps_at_recall
+
+    q = qps_at_recall([0.9955], [124099.7], 0.95)
+    assert q == pytest.approx(124099.7)
