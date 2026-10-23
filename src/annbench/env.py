@@ -77,11 +77,29 @@ def _total_ram_gb() -> float:
 
 
 def _version(mod: str) -> str:
+    """Version of an installed module.
+
+    hnswlib exposes no ``__version__``, and faiss-cpu installs a module called
+    ``faiss``, so neither attribute lookup nor the module name alone is enough.
+    Fall back to the installed distribution metadata, trying the likely
+    distribution names. The report has to state library versions, so "unknown"
+    here is a defect rather than a cosmetic gap.
+    """
     try:
         m = __import__(mod)
-        return str(getattr(m, "__version__", "unknown"))
     except Exception:
         return "not installed"
+    v = getattr(m, "__version__", None)
+    if v:
+        return str(v)
+    import importlib.metadata as _md
+
+    for dist in (mod, f"{mod}-cpu", mod.replace("_", "-")):
+        try:
+            return str(_md.version(dist))
+        except Exception:
+            continue
+    return "unknown"
 
 
 def machine_id() -> str:
