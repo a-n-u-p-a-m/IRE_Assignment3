@@ -25,7 +25,7 @@ import os
 import uuid
 from datetime import datetime, timezone
 
-__all__ = ["COLUMNS", "ResultsWriter", "make_row", "load_results"]
+__all__ = ["COLUMNS", "ResultsWriter", "make_row", "load_results", "one_run_per_dataset"]
 
 COLUMNS = [
     "run_id",
@@ -146,3 +146,44 @@ def load_results(path: str):
             lambda s: json.loads(s) if isinstance(s, str) and s else []
         )
     return df
+
+
+def one_run_per_dataset(df, experiments=("part1", "part2", "part4"), verbose=True):
+    """Guard against a results file holding more than one run of an experiment.
+
+    ``results.csv`` is append-only and resumable, which is what makes a
+    multi-hour sweep survivable.  The cost is that nothing stops two *different*
+    runs landing in one file -- a 100K-vector quick run and a 1M-vector full
+    run, say.  For Parts 1, 2 and 4 the database size is fixed within a run, so
+    two sizes present means two runs pooled, and every frontier built from that
+    file is wrong: the smaller database is roughly an order of magnitude faster,
+    so it wins the whole Pareto envelope on throughput it never earned at full
+    scale.
+
+    This keeps only the largest ``n_vectors`` per (experiment, dataset) and says
+    loudly what it dropped.  Part 3 is excluded because there the database size
+    is the independent variable.
+    """
+    if df.empty or "n_vectors" not in df.columns:
+        return df
+    keep = []
+    for (exp, ds), g in df.groupby(["experiment", "dataset"], dropna=False):
+        if exp not in experiments:
+            keep.append(g)
+            continue
+        sizes = sorted(x for x in g["n_vectors"].dropna().unique())
+        if len(sizes) > 1:
+            biggest = sizes[-1]
+            dropped = int((g["n_vectors"] != biggest).sum())
+            if verbose:
+                print(
+                    f"  WARNING: {exp}/{ds} holds {len(sizes)} database sizes "
+                    f"{[int(s) for s in sizes]} -- that is more than one run in one "
+                    f"file. Keeping n={int(biggest):,} and ignoring {dropped} rows. "
+                    f"Run quick and full sweeps into separate files."
+                )
+            g = g[g["n_vectors"] == biggest]
+        keep.append(g)
+    import pandas as pd
+
+    return pd.concat(keep).sort_index() if keep else df

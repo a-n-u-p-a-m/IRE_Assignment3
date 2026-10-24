@@ -48,7 +48,16 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-RESULTS="results/results.csv"
+# Quick and full runs NEVER share a results file. They use different database
+# sizes, query counts, repeat counts and time budgets, so pooling them silently
+# corrupts every frontier, table and figure built from the file -- and because
+# the resume key does not include the measurement protocol, a quick row also
+# BLOCKS the full run from re-measuring that point.
+if [[ "$MODE" == "quick" ]]; then
+  RESULTS="results/results_quick.csv"
+else
+  RESULTS="results/results.csv"
+fi
 FIGURES="results/figures"
 TABLES="results/tables"
 mkdir -p "$FIGURES" "$TABLES" data/cache

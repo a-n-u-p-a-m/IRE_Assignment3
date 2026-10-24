@@ -30,7 +30,7 @@ from ..frontier import (
     qps_at_recall,
     target_is_bracketed,
 )
-from ..results import load_results
+from ..results import load_results, one_run_per_dataset
 
 
 def _fmt(x, nd=1):
@@ -82,7 +82,7 @@ def table_qps_at_recall(df, out_dir: str, targets=(0.90, 0.95)):
                     mark = "" if target_is_bracketed(g["recall_tune"], t) else " (≥)"
                     cells += [_fmt(q) + mark, f"{_fmt(speed)}x", cfg_s]
                 else:
-                    cells += ["not reached", "—", f"best recall {g['recall_test'].max():.3f}"]
+                    cells += ["not reached", "—", f"best recall_tune {g['recall_tune'].max():.4f}"]
             rows.append([dataset, kind] + cells)
 
     header = ["dataset", "index"]
@@ -118,8 +118,8 @@ def table_cost_at_recall(df, out_dir: str, target=0.95):
             g = p2[(p2["dataset"] == dataset) & (p2["index_type"] == kind)]
             best = best_rows_at_recall(g, target)
             if best is None:
-                rows.append([dataset, kind, f"never reaches {target:g}", "—", "—", "—",
-                             f"{g['recall_test'].max():.3f}"])
+                rows.append([dataset, kind, f"never reaches {target:g} on the tuning split", "—", "—", "—",
+                             f"{g['recall_tune'].max():.4f} (tune)"])
                 continue
             cfg = json.loads(best["params_json"])
             cfg_s = ",".join(f"{k}={v}" for k, v in sorted(cfg.items()))
@@ -173,6 +173,7 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
 
     df = load_results(args.results)
+    df = one_run_per_dataset(df)
     os.makedirs(args.tables, exist_ok=True)
     table_qps_at_recall(df, args.tables)
     table_cost_at_recall(df, args.tables, target=args.target)

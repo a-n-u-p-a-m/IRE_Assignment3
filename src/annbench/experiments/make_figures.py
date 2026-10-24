@@ -11,7 +11,7 @@ import argparse
 import os
 
 from ..plots import plot_part4, plot_scaling, plot_tradeoff
-from ..results import load_results
+from ..results import load_results, one_run_per_dataset
 
 
 def main(argv=None) -> int:
@@ -22,6 +22,7 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
 
     df = load_results(args.results)
+    df = one_run_per_dataset(df)
     os.makedirs(args.figures, exist_ok=True)
     made = []
 
