@@ -53,13 +53,17 @@ done
 # corrupts every frontier, table and figure built from the file -- and because
 # the resume key does not include the measurement protocol, a quick row also
 # BLOCKS the full run from re-measuring that point.
+# A quick run writes EVERYTHING under results/quick/ so it cannot touch the
+# full run's deliverables. Its figures would otherwise overwrite the report's.
 if [[ "$MODE" == "quick" ]]; then
-  RESULTS="results/results_quick.csv"
+  RESULTS="results/quick/results.csv"
+  FIGURES="results/quick/figures"
+  TABLES="results/quick/tables"
 else
   RESULTS="results/results.csv"
+  FIGURES="results/figures"
+  TABLES="results/tables"
 fi
-FIGURES="results/figures"
-TABLES="results/tables"
 mkdir -p "$FIGURES" "$TABLES" data/cache
 
 run_stage() { [[ -z "$ONLY" || "$ONLY" == "$1" ]]; }

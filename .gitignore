@@ -18,5 +18,7 @@ venv/
 # part of the deliverable, so they are tracked. Scratch output is not.
 results/scratch/
 results/*.tmp
+# --quick output is scratch, never a deliverable
+results/quick/
 
 .DS_Store

@@ -87,7 +87,7 @@ rsync -a \
   --exclude 'data/*.hdf5' --exclude 'data/cache' \
   --exclude '__pycache__' --exclude '.pytest_cache' --exclude '.ipynb_checkpoints' \
   --exclude '*.pyc' --exclude '*.index' --exclude '*.faiss' --exclude '*.bin' \
-  --exclude 'results' \
+  --exclude 'results/quick' \
   ./ "$STAGE/code/"
 
 cp results/results.csv "$STAGE/results/"
@@ -97,9 +97,9 @@ cp -r results/figures "$STAGE/results/"
 
 cp -r "$PARENT/ai_log/." "$STAGE/ai_log/"
 
-# code/ keeps its own copy of results too, so the repo stays runnable on its own
-mkdir -p "$STAGE/code/results"
-cp -r results/. "$STAGE/code/results/"
+# The brief says the zip must contain EXACTLY report.pdf, code/, results/ and
+# ai_log/ "and nothing else", so results/ is NOT duplicated inside code/.
+# run_all.sh regenerates everything into code/results/ on a fresh clone.
 
 rm -f "$OUT"
 (cd "$STAGE" && zip -qr "$OUT" .)

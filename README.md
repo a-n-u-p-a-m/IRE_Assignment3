@@ -26,6 +26,12 @@ Everything lands in `results/`:
 | `results/tables/` | every table, as Markdown and LaTeX |
 | `results/env.json` | machine and library versions of the run |
 
+A `--quick` run writes to `results/quick/` instead, so it can never overwrite
+the full run's deliverables or pool its measurements into them. The two use
+different database sizes, query counts and timing budgets, so their rows must
+never share a file: a 100K-vector measurement is roughly ten times faster than
+the same configuration at 1M, and would win a Pareto frontier it never earned.
+
 ### What `--quick` changes
 
 Nothing in the code. `--quick` selects `configs/quick.yaml` instead of
