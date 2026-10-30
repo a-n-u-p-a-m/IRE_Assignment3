@@ -33,6 +33,28 @@ from ..frontier import (
 from ..results import load_results, one_run_per_dataset
 
 
+def pq_search_table_bytes(params: dict) -> int:
+    """Bytes IVF-PQ holds at search time on top of the serialized index.
+
+    FAISS auto-enables ``use_precomputed_table`` for an L2 IVF-PQ index with a
+    flat quantizer, which allocates ``nlist * m * 2**nbits`` floats of
+    query-independent distance terms.  That table is **not** written by
+    ``faiss.serialize_index``, so measuring the file on disk understates what
+    PQ actually occupies in RAM -- and understates it in the direction that
+    flatters PQ, which is the whole point of using PQ.
+
+    The asymmetry matters because the timings already enjoy the table's speed
+    benefit while the memory column never paid for it.
+
+    Note the table does not scale with n: at 1M vectors it adds ~67 B/vector
+    for m=16, but at 10M it would add only ~6.7, so the penalty is worst for
+    small databases.
+    """
+    if not {"nlist", "m"} <= set(params):
+        return 0
+    return int(params["nlist"]) * int(params["m"]) * (2 ** int(params.get("nbits", 8))) * 4
+
+
 def _fmt(x, nd=1):
     if x is None or (isinstance(x, float) and not np.isfinite(x)):
         return "—"
@@ -113,30 +135,41 @@ def table_cost_at_recall(df, out_dir: str, target=0.95):
         if len(flat):
             r = flat.iloc[0]
             rows.append([dataset, "Flat (exact)", "—", _fmt(r["build_time_s"]),
-                         _fmt(r["index_bytes"] / 1e6), _fmt(r["bytes_per_vector"]), "1.000"])
+                         _fmt(r["index_bytes"] / 1e6), _fmt(r["bytes_per_vector"]),
+                         "—", _fmt(r["bytes_per_vector"]), "1.000"])
         for kind in sorted(p2[p2["dataset"] == dataset]["index_type"].unique()):
             g = p2[(p2["dataset"] == dataset) & (p2["index_type"] == kind)]
             best = best_rows_at_recall(g, target)
             if best is None:
                 rows.append([dataset, kind, f"never reaches {target:g} on the tuning split", "—", "—", "—",
-                             f"{g['recall_tune'].max():.4f} (tune)"])
+                             "—", "—", f"{g['recall_tune'].max():.4f} (tune)"])
                 continue
             cfg = json.loads(best["params_json"])
             cfg_s = ",".join(f"{k}={v}" for k, v in sorted(cfg.items()))
+            tab = pq_search_table_bytes(cfg) if kind.startswith("IVF-PQ") else 0
+            n = float(best["n_vectors"]) or 1
+            resident = float(best["index_bytes"]) + tab
             rows.append([
                 dataset, kind, cfg_s, _fmt(best["build_time_s"]),
                 _fmt(best["index_bytes"] / 1e6), _fmt(best["bytes_per_vector"]),
+                (_fmt(tab / 1e6) if tab else "—"),
+                _fmt(resident / n, 1),
                 f"{best['recall_test']:.3f}",
             ])
     _write(
         os.path.join(out_dir, "part2_cost_at_recall.md"),
         f"Part 2: build cost and memory at recall {target:g}",
-        ["dataset", "index", "config", "build time (s)", "size (MB)", "bytes/vector", "recall@10 (held-out)"],
+        ["dataset", "index", "config", "build time (s)", "size (MB)", "bytes/vector",
+         "PQ search table (MB)", "resident B/vec", "recall@10 (held-out)"],
         rows,
         preamble=(
-            "Size is the serialized index on disk, which for these index types is within a "
-            "few percent of resident memory. Builds use all cores (search does not); the "
-            "thread count is recorded per row in results.csv."
+            "`size` is the serialized index on disk. For HNSW and IVF-Flat that is within a "
+            "few percent of resident memory, but **not for IVF-PQ**: FAISS auto-enables a "
+            "precomputed distance table of nlist x m x 2^nbits floats that is held in RAM at "
+            "search time and is not serialized. The timings already benefit from it, so "
+            "omitting it would flatter PQ in exactly the dimension PQ is chosen for. "
+            "`resident B/vec` adds it back. The table does not grow with n, so its per-vector "
+            "cost falls as the database grows. Builds use all cores; search is single-threaded."
         ),
     )
 
