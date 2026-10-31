@@ -1,0 +1,15 @@
+# Part 3: throughput at recall 0.95 vs database size
+
+nlist is retuned per size as round(4*sqrt(n)) to the nearest power of two.
+
+| n vectors | index | QPS @ recall 0.95 | build time (s) | note |
+|---|---|---|---|---|
+| 100,000 | Flat | 388.5 | 0.0 | recall 1.0 by construction |
+| 100,000 | HNSW | 18,733.3 | 2.9 |  |
+| 100,000 | IVF-Flat | 9,334.4 | 5.7 |  |
+| 300,000 | Flat | 130.8 | 0.1 | recall 1.0 by construction |
+| 300,000 | HNSW | 12,583.1 | 15.6 |  |
+| 300,000 | IVF-Flat | 4,329.0 | 31.5 |  |
+| 1,000,000 | Flat | 40.3 | 0.4 | recall 1.0 by construction |
+| 1,000,000 | HNSW | 8,424.2 | 76.1 |  |
+| 1,000,000 | IVF-Flat | 2,135.9 | 215.8 |  |
