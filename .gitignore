@@ -22,3 +22,7 @@ results/*.tmp
 results/quick/
 
 .DS_Store
+
+# run logs and scratch archives
+*.log
+results_full.zip
