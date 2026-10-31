@@ -28,6 +28,8 @@ from __future__ import annotations
 import json
 import os
 
+import faiss
+
 from ..datasets import verify_ground_truth
 from ..indexes import FlatIndex
 from ..timing import TimingConfig, time_batch, time_single_query
@@ -90,15 +92,34 @@ def main(argv=None) -> int:
             min_queries=min(timing_cfg.min_queries, 64),
             time_budget_s=timing_cfg.time_budget_s,
         )
+        # The batch must be large enough that FAISS actually takes its BLAS
+        # path, or this measures nothing but per-call overhead. FAISS switches
+        # on `nq * d >= distance_compute_blas_threshold` (128,000 by default),
+        # so at d=128 the switch is at 1,001 queries and a 512-query "batch"
+        # still runs the sequential kernel -- the comparison would then show a
+        # ~2x overhead saving and be mistaken for the GEMM effect it is
+        # supposed to demonstrate. Time the full query set, and assert we are
+        # past the threshold so a smaller config cannot silently regress.
+        blas_min = int(faiss.cvar.distance_compute_blas_threshold) // ds.dim + 1
+        batch_n = max(timing_cfg.max_queries, blas_min)
+        batch_n = min(batch_n, len(ds_tune.queries))
+        if batch_n < blas_min:
+            print(
+                f"    WARNING: batch of {batch_n} is below FAISS's BLAS "
+                f"threshold ({blas_min} at d={ds.dim}); this measures per-call "
+                f"overhead, not GEMM reuse.",
+                flush=True,
+            )
         batch_cfg = TimingConfig(
             repeats=timing_cfg.repeats, warmup=True,
-            max_queries=single_cfg.max_queries, min_queries=single_cfg.min_queries,
+            max_queries=batch_n, min_queries=min(timing_cfg.min_queries, batch_n),
             time_budget_s=timing_cfg.time_budget_s,
         )
         timed = ds_tune.queries
         print("  timing exact search, one query at a time (1 thread) ...", flush=True)
         single = time_single_query(index, timed, k, single_cfg)
-        print("  timing exact search, all queries in one batch (1 thread) ...", flush=True)
+        print(f"  timing exact search, {batch_n} queries in one batch (1 thread; "
+              f"FAISS BLAS path starts at {blas_min}) ...", flush=True)
         batch = time_batch(index, timed, k, batch_cfg, threads=1)
         speedup = batch.qps_median / single.qps_median if single.qps_median else float("nan")
         print(

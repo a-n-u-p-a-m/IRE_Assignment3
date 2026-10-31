@@ -9,7 +9,7 @@
 | glove | IVF-Flat | nlist=4096 | 206.5 | 484.5 | 409.4 | — | 409.4 | 0.965 |
 | glove | IVF-PQ | never reaches 0.95 on the tuning split | — | — | — | — | — | 0.6302 (tune) |
 | glove | IVF-PQ+rerank | m=25,nbits=8,nlist=4096,refine=True,refine_at_k=10,refine_k=100 | 214.7 | 514.2 | 434.5 | 104.9 | 523.1 | 0.970 |
-| sift | Flat (exact) | — | 0.5 | 512.0 | 512.0 | — | 512.0 | 1.000 |
+| sift | Flat (exact) | — | 0.2 | 512.0 | 512.0 | — | 512.0 | 1.000 |
 | sift | HNSW | M=16,ef_construction=200 | 78.7 | 660.5 | 660.5 | — | 660.5 | 0.966 |
 | sift | IVF-Flat | nlist=16384 | 864.3 | 528.5 | 528.5 | — | 528.5 | 0.973 |
 | sift | IVF-PQ | never reaches 0.95 on the tuning split | — | — | — | — | — | 0.7383 (tune) |

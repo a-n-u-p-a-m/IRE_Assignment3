@@ -1,0 +1,593 @@
+nohup: ignoring input
+
+[1m=== ANN benchmark - full run (configs/full.yaml) ===[0m
+  cpu_count          20
+  cpu_model          13th Gen Intel(R) Core(TM) i7-13650HX
+  faiss              1.15.1
+  git_commit         c0f8e94+dirty
+  h5py               3.16.0
+  hnswlib            0.8.0
+  machine_id         Linux-x86_64-20core
+  matplotlib         3.11.2
+  numpy              2.4.4
+  omp_num_threads    1
+  pandas             3.1.0
+  platform           Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39
+  python             3.12.3
+  total_ram_gb       11.7
+
+[1m=== Unit tests (recall function, frontier, index wrappers, generator) ===[0m
+..................................................                       [100%]
+50 passed in 1.65s
+
+[1m=== Part 1: exact baseline, ground-truth check, single vs batch timing ===[0m
+config: full  (configs/full.yaml)
+machine: Linux-x86_64-20core | faiss 1.15.1 | commit c0f8e94+dirty
+
+=== Part 1: sift ===
+  Dataset(name='sift', n=1000000, dim=128, n_queries=10000, normalized=False)
+  verifying against the shipped neighbour ids (full database, n=1,000,000, 5000 queries) ...
+    naive set recall=0.999500  tie-aware recall=1.000000  queries with a differing set=25
+  timing exact search, one query at a time (1 thread) ...
+  timing exact search, all queries in one batch (1 thread) ...
+    single=38.2 QPS   batch=82.3 QPS   (2.2x)
+
+=== Part 1: glove ===
+  Dataset(name='glove', n=1183514, dim=100, n_queries=10000, normalized=True)
+  verifying against the shipped neighbour ids (full database, n=1,183,514, 5000 queries) ...
+    naive set recall=1.000000  tie-aware recall=1.000000  queries with a differing set=0
+  timing exact search, one query at a time (1 thread) ...
+  timing exact search, all queries in one batch (1 thread) ...
+    single=42.4 QPS   batch=75.8 QPS   (1.8x)
+
+wrote results/tables/part1_verification.md and part1_timing.md
+
+[1m=== Part 2: HNSW / IVF-Flat / IVF-PQ on both datasets ===[0m
+config: full  (configs/full.yaml)
+machine: Linux-x86_64-20core | faiss 1.15.1 | commit c0f8e94+dirty
+
+=== Part 2: sift ===
+  Dataset(name='sift', n=1000000, dim=128, n_queries=10000, normalized=False)
+  10 build configurations to sweep
+    build HNSW {"M": 8, "ef_construction": 200} on n=1000000 ...
+      built in 58.9s, 597.1 MB (597.1 B/vec)
+      efSearch=    10  recall_tune=0.5480 recall_test=0.5871  qps= 41719.9  (timed 5000 q)
+      efSearch=    16  recall_tune=0.6495 recall_test=0.6877  qps= 32010.2  (timed 5000 q)
+      efSearch=    24  recall_tune=0.7327 recall_test=0.7662  qps= 20887.0  (timed 5000 q)
+      efSearch=    32  recall_tune=0.7856 recall_test=0.8135  qps= 18904.8  (timed 5000 q)
+      efSearch=    48  recall_tune=0.8520 recall_test=0.8712  qps= 14520.2  (timed 5000 q)
+      efSearch=    64  recall_tune=0.8901 recall_test=0.9044  qps= 12492.2  (timed 5000 q)
+      efSearch=    96  recall_tune=0.9328 recall_test=0.9403  qps=  8578.6  (timed 5000 q)
+      efSearch=   128  recall_tune=0.9537 recall_test=0.9591  qps=  6708.7  (timed 5000 q)
+      efSearch=   192  recall_tune=0.9738 recall_test=0.9771  qps=  4676.2  (timed 5000 q)
+      efSearch=   256  recall_tune=0.9829 recall_test=0.9854  qps=  3515.4  (timed 5000 q)
+      efSearch=   384  recall_tune=0.9909 recall_test=0.9928  qps=  2549.1  (timed 5000 q)
+      efSearch=   512  recall_tune=0.9942 recall_test=0.9955  qps=  1973.2  (timed 5000 q)
+      efSearch=   768  recall_tune=0.9972 recall_test=0.9979  qps=  1388.4  (timed 5000 q)
+      early stop: recall saturated
+    build HNSW {"M": 16, "ef_construction": 200} on n=1000000 ...
+      built in 78.7s, 660.5 MB (660.5 B/vec)
+      efSearch=    10  recall_tune=0.6971 recall_test=0.7198  qps= 30277.4  (timed 5000 q)
+      efSearch=    16  recall_tune=0.7918 recall_test=0.8124  qps= 24501.4  (timed 5000 q)
+      efSearch=    24  recall_tune=0.8599 recall_test=0.8740  qps= 16089.9  (timed 5000 q)
+      efSearch=    32  recall_tune=0.8977 recall_test=0.9108  qps= 13107.0  (timed 5000 q)
+      efSearch=    48  recall_tune=0.9405 recall_test=0.9478  qps= 10242.9  (timed 5000 q)
+      efSearch=    64  recall_tune=0.9614 recall_test=0.9664  qps=  8546.4  (timed 5000 q)
+      efSearch=    96  recall_tune=0.9806 recall_test=0.9839  qps=  6018.1  (timed 5000 q)
+      efSearch=   128  recall_tune=0.9893 recall_test=0.9909  qps=  4256.9  (timed 5000 q)
+      efSearch=   192  recall_tune=0.9953 recall_test=0.9964  qps=  3228.6  (timed 5000 q)
+      early stop: recall saturated
+    build HNSW {"M": 32, "ef_construction": 200} on n=1000000 ...
+      built in 116.3s, 788.2 MB (788.2 B/vec)
+      efSearch=    10  recall_tune=0.7692 recall_test=0.7837  qps= 17321.7  (timed 5000 q)
+      efSearch=    16  recall_tune=0.8529 recall_test=0.8645  qps= 12906.2  (timed 5000 q)
+      efSearch=    24  recall_tune=0.9085 recall_test=0.9179  qps=  8791.9  (timed 5000 q)
+      efSearch=    32  recall_tune=0.9394 recall_test=0.9467  qps=  8943.1  (timed 5000 q)
+      efSearch=    48  recall_tune=0.9675 recall_test=0.9728  qps=  6649.0  (timed 5000 q)
+      efSearch=    64  recall_tune=0.9801 recall_test=0.9837  qps=  5075.6  (timed 5000 q)
+      efSearch=    96  recall_tune=0.9911 recall_test=0.9927  qps=  3898.4  (timed 5000 q)
+      efSearch=   128  recall_tune=0.9955 recall_test=0.9963  qps=  3077.1  (timed 5000 q)
+      early stop: recall saturated
+    build IVF-Flat {"nlist": 1024} on n=1000000 ...
+      built in 19.8s, 520.5 MB (520.5 B/vec)
+      nprobe=     1  recall_tune=0.3510 recall_test=0.3932  qps= 19635.5  (timed 5000 q)
+      nprobe=     2  recall_tune=0.5149 recall_test=0.5588  qps= 10262.2  (timed 5000 q)
+      nprobe=     4  recall_tune=0.6851 recall_test=0.7217  qps=  5882.5  (timed 5000 q)
+      nprobe=     8  recall_tune=0.8282 recall_test=0.8526  qps=  3016.2  (timed 5000 q)
+      nprobe=    16  recall_tune=0.9283 recall_test=0.9386  qps=  1626.1  (timed 5000 q)
+      nprobe=    32  recall_tune=0.9786 recall_test=0.9816  qps=   791.2  (timed 5000 q)
+      nprobe=    64  recall_tune=0.9963 recall_test=0.9963  qps=   420.8  (timed 5000 q)
+      early stop: recall saturated
+    build IVF-Flat {"nlist": 4096} on n=1000000 ...
+      built in 219.2s, 522.1 MB (522.1 B/vec)
+      nprobe=     1  recall_tune=0.2640 recall_test=0.3015  qps= 20658.0  (timed 5000 q)
+      nprobe=     2  recall_tune=0.3985 recall_test=0.4446  qps= 16793.0  (timed 5000 q)
+      nprobe=     4  recall_tune=0.5490 recall_test=0.5955  qps= 12153.6  (timed 5000 q)
+      nprobe=     8  recall_tune=0.7033 recall_test=0.7356  qps=  8608.1  (timed 5000 q)
+      nprobe=    16  recall_tune=0.8295 recall_test=0.8514  qps=  5199.9  (timed 5000 q)
+      nprobe=    32  recall_tune=0.9191 recall_test=0.9304  qps=  3053.5  (timed 5000 q)
+      nprobe=    64  recall_tune=0.9707 recall_test=0.9750  qps=  1690.0  (timed 5000 q)
+      nprobe=   128  recall_tune=0.9932 recall_test=0.9935  qps=   898.3  (timed 5000 q)
+      nprobe=   256  recall_tune=0.9990 recall_test=0.9992  qps=   461.3  (timed 5000 q)
+      early stop: recall saturated
+    build IVF-Flat {"nlist": 16384} on n=1000000 ...
+      built in 864.3s, 528.5 MB (528.5 B/vec)
+      nprobe=     1  recall_tune=0.2027 recall_test=0.2365  qps=  5701.2  (timed 5000 q)
+      nprobe=     2  recall_tune=0.3120 recall_test=0.3577  qps=  5640.5  (timed 5000 q)
+      nprobe=     4  recall_tune=0.4397 recall_test=0.4943  qps=  5406.9  (timed 5000 q)
+      nprobe=     8  recall_tune=0.5838 recall_test=0.6343  qps=  5024.4  (timed 5000 q)
+      nprobe=    16  recall_tune=0.7194 recall_test=0.7577  qps=  4374.3  (timed 5000 q)
+      nprobe=    32  recall_tune=0.8350 recall_test=0.8605  qps=  3497.5  (timed 5000 q)
+      nprobe=    64  recall_tune=0.9196 recall_test=0.9319  qps=  2505.4  (timed 5000 q)
+      nprobe=   128  recall_tune=0.9691 recall_test=0.9734  qps=  1738.3  (timed 5000 q)
+      nprobe=   256  recall_tune=0.9909 recall_test=0.9920  qps=  1039.3  (timed 5000 q)
+      nprobe=   512  recall_tune=0.9985 recall_test=0.9986  qps=   611.8  (timed 5000 q)
+      early stop: recall saturated
+    build IVF-PQ {"m": 16, "nbits": 8, "nlist": 4096} on n=1000000 ...
+      built in 228.7s, 26.3 MB (26.3 B/vec)
+      nprobe=     1  recall_tune=0.2398 recall_test=0.2682  qps= 23384.6  (timed 5000 q)
+      nprobe=     2  recall_tune=0.3405 recall_test=0.3706  qps= 20746.3  (timed 5000 q)
+      nprobe=     4  recall_tune=0.4327 recall_test=0.4591  qps= 18133.8  (timed 5000 q)
+      nprobe=     8  recall_tune=0.5057 recall_test=0.5234  qps= 14845.3  (timed 5000 q)
+      nprobe=    16  recall_tune=0.5502 recall_test=0.5635  qps= 11240.7  (timed 5000 q)
+      nprobe=    32  recall_tune=0.5740 recall_test=0.5838  qps=  7526.7  (timed 5000 q)
+      nprobe=    64  recall_tune=0.5835 recall_test=0.5920  qps=  4467.2  (timed 5000 q)
+      nprobe=   128  recall_tune=0.5867 recall_test=0.5943  qps=  2533.1  (timed 5000 q)
+      nprobe=   256  recall_tune=0.5870 recall_test=0.5949  qps=  1393.5  (timed 5000 q)
+      nprobe=   512  recall_tune=0.5871 recall_test=0.5949  qps=   722.7  (timed 5000 q)
+      nprobe=  1024  recall_tune=0.5871 recall_test=0.5949  qps=   373.7  (timed 5000 q)
+      nprobe=  2048  recall_tune=0.5871 recall_test=0.5949  qps=   192.6  (timed 3872 q)
+    build IVF-PQ+rerank {"m": 16, "nbits": 8, "nlist": 4096, "refine": true, "refine_at_k": 10, "refine_k": 100} on n=1000000 ...
+      built in 226.2s, 538.3 MB (538.3 B/vec)
+      nprobe=     1  recall_tune=0.2640 recall_test=0.3014  qps= 14897.6  (timed 5000 q)
+      nprobe=     2  recall_tune=0.3985 recall_test=0.4444  qps= 12557.5  (timed 5000 q)
+      nprobe=     4  recall_tune=0.5487 recall_test=0.5950  qps= 11882.0  (timed 5000 q)
+      nprobe=     8  recall_tune=0.7026 recall_test=0.7346  qps=  9989.3  (timed 5000 q)
+      nprobe=    16  recall_tune=0.8269 recall_test=0.8483  qps=  7789.8  (timed 5000 q)
+      nprobe=    32  recall_tune=0.9131 recall_test=0.9239  qps=  5801.3  (timed 5000 q)
+      nprobe=    64  recall_tune=0.9606 recall_test=0.9645  qps=  3757.2  (timed 5000 q)
+      nprobe=   128  recall_tune=0.9796 recall_test=0.9803  qps=  2303.2  (timed 5000 q)
+      nprobe=   256  recall_tune=0.9840 recall_test=0.9848  qps=  1271.6  (timed 5000 q)
+      nprobe=   512  recall_tune=0.9846 recall_test=0.9853  qps=   711.8  (timed 5000 q)
+      nprobe=  1024  recall_tune=0.9846 recall_test=0.9853  qps=   367.7  (timed 5000 q)
+      nprobe=  2048  recall_tune=0.9846 recall_test=0.9853  qps=   191.6  (timed 3840 q)
+    build IVF-PQ {"m": 32, "nbits": 8, "nlist": 4096} on n=1000000 ...
+      built in 225.0s, 42.3 MB (42.3 B/vec)
+      nprobe=     1  recall_tune=0.2557 recall_test=0.2884  qps= 21768.6  (timed 5000 q)
+      nprobe=     2  recall_tune=0.3761 recall_test=0.4129  qps= 18889.7  (timed 5000 q)
+      nprobe=     4  recall_tune=0.4972 recall_test=0.5317  qps= 17030.2  (timed 5000 q)
+      nprobe=     8  recall_tune=0.6032 recall_test=0.6253  qps= 12517.1  (timed 5000 q)
+      nprobe=    16  recall_tune=0.6725 recall_test=0.6897  qps=  8705.9  (timed 5000 q)
+      nprobe=    32  recall_tune=0.7122 recall_test=0.7244  qps=  5235.6  (timed 5000 q)
+      nprobe=    64  recall_tune=0.7303 recall_test=0.7403  qps=  3011.9  (timed 5000 q)
+      nprobe=   128  recall_tune=0.7367 recall_test=0.7461  qps=  1652.5  (timed 5000 q)
+      nprobe=   256  recall_tune=0.7382 recall_test=0.7473  qps=   872.0  (timed 5000 q)
+      nprobe=   512  recall_tune=0.7383 recall_test=0.7474  qps=   452.6  (timed 5000 q)
+      nprobe=  1024  recall_tune=0.7383 recall_test=0.7474  qps=   232.8  (timed 4672 q)
+      nprobe=  2048  recall_tune=0.7383 recall_test=0.7474  qps=   118.8  (timed 2400 q)
+    build IVF-PQ+rerank {"m": 32, "nbits": 8, "nlist": 4096, "refine": true, "refine_at_k": 10, "refine_k": 100} on n=1000000 ...
+      built in 303.3s, 554.3 MB (554.3 B/vec)
+      nprobe=     1  recall_tune=0.2640 recall_test=0.3015  qps= 13960.2  (timed 5000 q)
+      nprobe=     2  recall_tune=0.3985 recall_test=0.4446  qps= 12440.2  (timed 5000 q)
+      nprobe=     4  recall_tune=0.5490 recall_test=0.5955  qps= 10510.0  (timed 5000 q)
+      nprobe=     8  recall_tune=0.7033 recall_test=0.7356  qps=  8392.4  (timed 5000 q)
+      nprobe=    16  recall_tune=0.8294 recall_test=0.8514  qps=  6383.6  (timed 5000 q)
+      nprobe=    32  recall_tune=0.9190 recall_test=0.9304  qps=  4205.8  (timed 5000 q)
+      nprobe=    64  recall_tune=0.9705 recall_test=0.9749  qps=  2543.2  (timed 5000 q)
+      nprobe=   128  recall_tune=0.9928 recall_test=0.9933  qps=  1456.6  (timed 5000 q)
+      nprobe=   256  recall_tune=0.9986 recall_test=0.9989  qps=   804.0  (timed 5000 q)
+      early stop: recall saturated
+  101 new rows for sift
+
+=== Part 2: glove ===
+  Dataset(name='glove', n=1183514, dim=100, n_queries=10000, normalized=True)
+  10 build configurations to sweep
+    build HNSW {"M": 8, "ef_construction": 200} on n=1183514 ...
+      built in 79.5s, 574.2 MB (485.1 B/vec)
+      efSearch=    10  recall_tune=0.3143 recall_test=0.3030  qps= 35703.7  (timed 5000 q)
+      efSearch=    16  recall_tune=0.3925 recall_test=0.3829  qps= 25749.0  (timed 5000 q)
+      efSearch=    24  recall_tune=0.4632 recall_test=0.4553  qps= 17482.5  (timed 5000 q)
+      efSearch=    32  recall_tune=0.5101 recall_test=0.5076  qps= 14527.4  (timed 5000 q)
+      efSearch=    48  recall_tune=0.5772 recall_test=0.5777  qps= 11441.3  (timed 5000 q)
+      efSearch=    64  recall_tune=0.6237 recall_test=0.6213  qps=  9351.1  (timed 5000 q)
+      efSearch=    96  recall_tune=0.6820 recall_test=0.6808  qps=  7007.5  (timed 5000 q)
+      efSearch=   128  recall_tune=0.7178 recall_test=0.7164  qps=  5605.8  (timed 5000 q)
+      efSearch=   192  recall_tune=0.7603 recall_test=0.7613  qps=  3889.2  (timed 5000 q)
+      efSearch=   256  recall_tune=0.7899 recall_test=0.7902  qps=  3143.3  (timed 5000 q)
+      efSearch=   384  recall_tune=0.8235 recall_test=0.8249  qps=  2054.2  (timed 5000 q)
+      efSearch=   512  recall_tune=0.8450 recall_test=0.8465  qps=  1724.5  (timed 5000 q)
+      efSearch=   768  recall_tune=0.8718 recall_test=0.8722  qps=  1177.0  (timed 5000 q)
+    build HNSW {"M": 16, "ef_construction": 200} on n=1183514 ...
+      built in 135.4s, 649.2 MB (548.5 B/vec)
+      efSearch=    10  recall_tune=0.4751 recall_test=0.4691  qps= 22694.3  (timed 5000 q)
+      efSearch=    16  recall_tune=0.5593 recall_test=0.5544  qps= 15927.6  (timed 5000 q)
+      efSearch=    24  recall_tune=0.6245 recall_test=0.6243  qps= 10267.0  (timed 5000 q)
+      efSearch=    32  recall_tune=0.6690 recall_test=0.6706  qps= 10581.0  (timed 5000 q)
+      efSearch=    48  recall_tune=0.7264 recall_test=0.7268  qps=  7420.2  (timed 5000 q)
+      efSearch=    64  recall_tune=0.7618 recall_test=0.7633  qps=  6034.5  (timed 5000 q)
+      efSearch=    96  recall_tune=0.8051 recall_test=0.8063  qps=  4445.1  (timed 5000 q)
+      efSearch=   128  recall_tune=0.8309 recall_test=0.8327  qps=  3528.4  (timed 5000 q)
+      efSearch=   192  recall_tune=0.8628 recall_test=0.8647  qps=  2523.1  (timed 5000 q)
+      efSearch=   256  recall_tune=0.8829 recall_test=0.8850  qps=  1970.9  (timed 5000 q)
+      efSearch=   384  recall_tune=0.9089 recall_test=0.9097  qps=  1386.2  (timed 5000 q)
+      efSearch=   512  recall_tune=0.9252 recall_test=0.9257  qps=  1062.2  (timed 5000 q)
+      efSearch=   768  recall_tune=0.9436 recall_test=0.9440  qps=   724.1  (timed 5000 q)
+    build HNSW {"M": 32, "ef_construction": 200} on n=1183514 ...
+      built in 228.1s, 800.3 MB (676.2 B/vec)
+      efSearch=    10  recall_tune=0.5767 recall_test=0.5776  qps= 13811.7  (timed 5000 q)
+      efSearch=    16  recall_tune=0.6558 recall_test=0.6574  qps=  9440.5  (timed 5000 q)
+      efSearch=    24  recall_tune=0.7169 recall_test=0.7179  qps=  7372.0  (timed 5000 q)
+      efSearch=    32  recall_tune=0.7553 recall_test=0.7573  qps=  6345.8  (timed 5000 q)
+      efSearch=    48  recall_tune=0.8017 recall_test=0.8042  qps=  4690.6  (timed 5000 q)
+      efSearch=    64  recall_tune=0.8319 recall_test=0.8332  qps=  3933.9  (timed 5000 q)
+      efSearch=    96  recall_tune=0.8679 recall_test=0.8687  qps=  2805.8  (timed 5000 q)
+      efSearch=   128  recall_tune=0.8904 recall_test=0.8901  qps=  2207.3  (timed 5000 q)
+      efSearch=   192  recall_tune=0.9177 recall_test=0.9190  qps=  1560.6  (timed 5000 q)
+      efSearch=   256  recall_tune=0.9335 recall_test=0.9353  qps=  1224.3  (timed 5000 q)
+      efSearch=   384  recall_tune=0.9537 recall_test=0.9549  qps=   848.2  (timed 5000 q)
+      efSearch=   512  recall_tune=0.9661 recall_test=0.9659  qps=   652.7  (timed 5000 q)
+      efSearch=   768  recall_tune=0.9787 recall_test=0.9786  qps=   443.5  (timed 5000 q)
+    build IVF-Flat {"nlist": 1024} on n=1183514 ...
+      built in 18.1s, 483.3 MB (408.4 B/vec)
+      nprobe=     1  recall_tune=0.3836 recall_test=0.3989  qps= 19323.6  (timed 5000 q)
+      nprobe=     2  recall_tune=0.5141 recall_test=0.5257  qps= 12800.1  (timed 5000 q)
+      nprobe=     4  recall_tune=0.6266 recall_test=0.6330  qps=  7008.4  (timed 5000 q)
+      nprobe=     8  recall_tune=0.7174 recall_test=0.7252  qps=  3916.2  (timed 5000 q)
+      nprobe=    16  recall_tune=0.7936 recall_test=0.7967  qps=  2112.8  (timed 5000 q)
+      nprobe=    32  recall_tune=0.8563 recall_test=0.8570  qps=  1145.6  (timed 5000 q)
+      nprobe=    64  recall_tune=0.9076 recall_test=0.9083  qps=   611.9  (timed 5000 q)
+      nprobe=   128  recall_tune=0.9493 recall_test=0.9503  qps=   319.0  (timed 5000 q)
+      nprobe=   256  recall_tune=0.9803 recall_test=0.9808  qps=   162.3  (timed 3264 q)
+      nprobe=   512  recall_tune=0.9968 recall_test=0.9975  qps=    79.2  (timed 1600 q)
+      early stop: recall saturated
+    build IVF-Flat {"nlist": 4096} on n=1183514 ...
+      built in 206.5s, 484.5 MB (409.4 B/vec)
+      nprobe=     1  recall_tune=0.3186 recall_test=0.3234  qps= 20013.9  (timed 5000 q)
+      nprobe=     2  recall_tune=0.4333 recall_test=0.4398  qps= 16333.3  (timed 5000 q)
+      nprobe=     4  recall_tune=0.5428 recall_test=0.5477  qps= 13269.6  (timed 5000 q)
+      nprobe=     8  recall_tune=0.6338 recall_test=0.6416  qps=  9594.3  (timed 5000 q)
+      nprobe=    16  recall_tune=0.7136 recall_test=0.7175  qps=  6357.8  (timed 5000 q)
+      nprobe=    32  recall_tune=0.7818 recall_test=0.7842  qps=  3575.3  (timed 5000 q)
+      nprobe=    64  recall_tune=0.8400 recall_test=0.8403  qps=  2029.9  (timed 5000 q)
+      nprobe=   128  recall_tune=0.8905 recall_test=0.8900  qps=  1027.7  (timed 5000 q)
+      nprobe=   256  recall_tune=0.9317 recall_test=0.9333  qps=   561.4  (timed 5000 q)
+      nprobe=   512  recall_tune=0.9646 recall_test=0.9649  qps=   293.1  (timed 5000 q)
+    build IVF-Flat {"nlist": 16384} on n=1183514 ...
+      built in 967.0s, 489.6 MB (413.6 B/vec)
+      nprobe=     1  recall_tune=0.2596 recall_test=0.2653  qps=  7204.1  (timed 5000 q)
+      nprobe=     2  recall_tune=0.3595 recall_test=0.3659  qps=  7269.9  (timed 5000 q)
+      nprobe=     4  recall_tune=0.4596 recall_test=0.4662  qps=  7215.2  (timed 5000 q)
+      nprobe=     8  recall_tune=0.5526 recall_test=0.5611  qps=  6508.2  (timed 5000 q)
+      nprobe=    16  recall_tune=0.6368 recall_test=0.6419  qps=  5537.8  (timed 5000 q)
+      nprobe=    32  recall_tune=0.7096 recall_test=0.7145  qps=  4522.5  (timed 5000 q)
+      nprobe=    64  recall_tune=0.7737 recall_test=0.7770  qps=  3277.6  (timed 5000 q)
+      nprobe=   128  recall_tune=0.8304 recall_test=0.8331  qps=  2101.8  (timed 5000 q)
+      nprobe=   256  recall_tune=0.8826 recall_test=0.8821  qps=  1271.3  (timed 5000 q)
+      nprobe=   512  recall_tune=0.9229 recall_test=0.9236  qps=   741.5  (timed 5000 q)
+    build IVF-PQ {"m": 20, "nbits": 8, "nlist": 4096} on n=1183514 ...
+      built in 226.1s, 34.9 MB (29.5 B/vec)
+      nprobe=     1  recall_tune=0.2656 recall_test=0.2703  qps= 20306.5  (timed 5000 q)
+      nprobe=     2  recall_tune=0.3405 recall_test=0.3466  qps= 18149.4  (timed 5000 q)
+      nprobe=     4  recall_tune=0.4023 recall_test=0.4032  qps= 15237.4  (timed 5000 q)
+      nprobe=     8  recall_tune=0.4446 recall_test=0.4477  qps= 12406.0  (timed 5000 q)
+      nprobe=    16  recall_tune=0.4758 recall_test=0.4780  qps=  8687.0  (timed 5000 q)
+      nprobe=    32  recall_tune=0.4981 recall_test=0.4999  qps=  5634.8  (timed 5000 q)
+      nprobe=    64  recall_tune=0.5139 recall_test=0.5146  qps=  3191.3  (timed 5000 q)
+      nprobe=   128  recall_tune=0.5250 recall_test=0.5264  qps=  1793.6  (timed 5000 q)
+      nprobe=   256  recall_tune=0.5325 recall_test=0.5345  qps=   982.4  (timed 5000 q)
+      nprobe=   512  recall_tune=0.5374 recall_test=0.5381  qps=   513.0  (timed 5000 q)
+      nprobe=  1024  recall_tune=0.5397 recall_test=0.5405  qps=   259.1  (timed 5000 q)
+      nprobe=  2048  recall_tune=0.5406 recall_test=0.5414  qps=   130.7  (timed 2624 q)
+    build IVF-PQ+rerank {"m": 20, "nbits": 8, "nlist": 4096, "refine": true, "refine_at_k": 10, "refine_k": 100} on n=1183514 ...
+      built in 232.1s, 508.3 MB (429.5 B/vec)
+      nprobe=     1  recall_tune=0.3185 recall_test=0.3233  qps= 13909.9  (timed 5000 q)
+      nprobe=     2  recall_tune=0.4329 recall_test=0.4395  qps= 12536.2  (timed 5000 q)
+      nprobe=     4  recall_tune=0.5417 recall_test=0.5468  qps= 11330.7  (timed 5000 q)
+      nprobe=     8  recall_tune=0.6309 recall_test=0.6384  qps=  8861.9  (timed 5000 q)
+      nprobe=    16  recall_tune=0.7073 recall_test=0.7109  qps=  6528.1  (timed 5000 q)
+      nprobe=    32  recall_tune=0.7706 recall_test=0.7726  qps=  4625.3  (timed 5000 q)
+      nprobe=    64  recall_tune=0.8213 recall_test=0.8215  qps=  2915.9  (timed 5000 q)
+      nprobe=   128  recall_tune=0.8623 recall_test=0.8614  qps=  1693.0  (timed 5000 q)
+      nprobe=   256  recall_tune=0.8929 recall_test=0.8947  qps=   955.9  (timed 5000 q)
+      nprobe=   512  recall_tune=0.9139 recall_test=0.9160  qps=   504.4  (timed 5000 q)
+      nprobe=  1024  recall_tune=0.9268 recall_test=0.9291  qps=   260.1  (timed 5000 q)
+      nprobe=  2048  recall_tune=0.9319 recall_test=0.9349  qps=   130.8  (timed 2624 q)
+    build IVF-PQ {"m": 25, "nbits": 8, "nlist": 4096} on n=1183514 ...
+      built in 231.0s, 40.8 MB (34.5 B/vec)
+      nprobe=     1  recall_tune=0.2832 recall_test=0.2882  qps= 23565.5  (timed 5000 q)
+      nprobe=     2  recall_tune=0.3693 recall_test=0.3746  qps= 20731.6  (timed 5000 q)
+      nprobe=     4  recall_tune=0.4419 recall_test=0.4453  qps= 16564.6  (timed 5000 q)
+      nprobe=     8  recall_tune=0.4949 recall_test=0.5007  qps= 12221.4  (timed 5000 q)
+      nprobe=    16  recall_tune=0.5355 recall_test=0.5387  qps=  7725.6  (timed 5000 q)
+      nprobe=    32  recall_tune=0.5659 recall_test=0.5690  qps=  4643.3  (timed 5000 q)
+      nprobe=    64  recall_tune=0.5886 recall_test=0.5905  qps=  2628.8  (timed 5000 q)
+      nprobe=   128  recall_tune=0.6056 recall_test=0.6068  qps=  1445.1  (timed 5000 q)
+      nprobe=   256  recall_tune=0.6171 recall_test=0.6192  qps=   762.6  (timed 5000 q)
+      nprobe=   512  recall_tune=0.6237 recall_test=0.6260  qps=   395.9  (timed 5000 q)
+      nprobe=  1024  recall_tune=0.6284 recall_test=0.6300  qps=   199.7  (timed 4000 q)
+      nprobe=  2048  recall_tune=0.6302 recall_test=0.6317  qps=   100.4  (timed 2016 q)
+    build IVF-PQ+rerank {"m": 25, "nbits": 8, "nlist": 4096, "refine": true, "refine_at_k": 10, "refine_k": 100} on n=1183514 ...
+      built in 214.7s, 514.2 MB (434.5 B/vec)
+      nprobe=     1  recall_tune=0.3186 recall_test=0.3234  qps= 15564.6  (timed 5000 q)
+      nprobe=     2  recall_tune=0.4332 recall_test=0.4398  qps= 13271.4  (timed 5000 q)
+      nprobe=     4  recall_tune=0.5427 recall_test=0.5476  qps= 11662.5  (timed 5000 q)
+      nprobe=     8  recall_tune=0.6335 recall_test=0.6412  qps=  8863.9  (timed 5000 q)
+      nprobe=    16  recall_tune=0.7129 recall_test=0.7165  qps=  6410.2  (timed 5000 q)
+      nprobe=    32  recall_tune=0.7799 recall_test=0.7824  qps=  4088.1  (timed 5000 q)
+      nprobe=    64  recall_tune=0.8363 recall_test=0.8373  qps=  2391.0  (timed 5000 q)
+      nprobe=   128  recall_tune=0.8845 recall_test=0.8843  qps=  1330.0  (timed 5000 q)
+      nprobe=   256  recall_tune=0.9219 recall_test=0.9242  qps=   740.7  (timed 5000 q)
+      nprobe=   512  recall_tune=0.9499 recall_test=0.9514  qps=   381.4  (timed 5000 q)
+      nprobe=  1024  recall_tune=0.9690 recall_test=0.9697  qps=   195.2  (timed 3904 q)
+      nprobe=  2048  recall_tune=0.9770 recall_test=0.9781  qps=    97.2  (timed 1952 q)
+  117 new rows for glove
+
+[1m=== Part 3: scaling on SIFT ===[0m
+config: full  (configs/full.yaml)
+machine: Linux-x86_64-20core | faiss 1.15.1 | commit c0f8e94+dirty
+
+=== Part 3: sift at n=100,000 ===
+  ground truth for sift@100000 from cache
+  Dataset(name='sift@100000', n=100000, dim=128, n_queries=10000, normalized=False); nlist for this size = 1024
+    build HNSW {"M": 16, "ef_construction": 200} on n=100000 ...
+      built in 2.9s, 66.1 MB (660.5 B/vec)
+      efSearch=    10  recall_tune=0.7700 recall_test=0.7908  qps= 42182.4  (timed 5000 q)
+      efSearch=    20  recall_tune=0.8879 recall_test=0.9008  qps= 28966.0  (timed 5000 q)
+      efSearch=    40  recall_tune=0.9617 recall_test=0.9661  qps= 17260.4  (timed 5000 q)
+      efSearch=    80  recall_tune=0.9909 recall_test=0.9923  qps=  9972.5  (timed 5000 q)
+      efSearch=   160  recall_tune=0.9986 recall_test=0.9987  qps=  6013.8  (timed 5000 q)
+      early stop: recall saturated
+    build IVF-Flat {"nlist": 1024} on n=100000 ...
+      built in 5.7s, 52.5 MB (525.3 B/vec)
+      nprobe=     1  recall_tune=0.2837 recall_test=0.3266  qps= 66740.6  (timed 5000 q)
+      nprobe=     2  recall_tune=0.4342 recall_test=0.4809  qps= 54487.0  (timed 5000 q)
+      nprobe=     4  recall_tune=0.5978 recall_test=0.6422  qps= 38224.8  (timed 5000 q)
+      nprobe=     8  recall_tune=0.7549 recall_test=0.7871  qps= 26584.0  (timed 5000 q)
+      nprobe=    16  recall_tune=0.8802 recall_test=0.8976  qps= 15926.5  (timed 5000 q)
+      nprobe=    32  recall_tune=0.9563 recall_test=0.9624  qps=  8894.9  (timed 5000 q)
+      nprobe=    64  recall_tune=0.9906 recall_test=0.9915  qps=  5006.7  (timed 5000 q)
+      nprobe=   128  recall_tune=0.9990 recall_test=0.9991  qps=  2635.1  (timed 5000 q)
+      early stop: recall saturated
+    build Flat {} on n=100000 ...
+      built in 0.0s, 51.2 MB (512.0 B/vec)
+      none=  None  recall_tune=1.0000 recall_test=1.0000  qps=   388.5  (timed 5000 q)
+      early stop: recall saturated
+
+=== Part 3: sift at n=300,000 ===
+  computing exact ground truth for sift@300000 ...
+  Dataset(name='sift@300000', n=300000, dim=128, n_queries=10000, normalized=False); nlist for this size = 2048
+    build HNSW {"M": 16, "ef_construction": 200} on n=300000 ...
+      built in 15.6s, 198.2 MB (660.5 B/vec)
+      efSearch=    10  recall_tune=0.7235 recall_test=0.7501  qps= 38857.6  (timed 5000 q)
+      efSearch=    20  recall_tune=0.8564 recall_test=0.8722  qps= 24520.0  (timed 5000 q)
+      efSearch=    40  recall_tune=0.9399 recall_test=0.9493  qps= 14195.8  (timed 5000 q)
+      efSearch=    80  recall_tune=0.9828 recall_test=0.9849  qps=  8510.3  (timed 5000 q)
+      efSearch=   160  recall_tune=0.9965 recall_test=0.9967  qps=  4770.8  (timed 5000 q)
+      early stop: recall saturated
+    build IVF-Flat {"nlist": 2048} on n=300000 ...
+      built in 31.5s, 157.1 MB (523.6 B/vec)
+      nprobe=     1  recall_tune=0.2722 recall_test=0.3098  qps= 40959.2  (timed 5000 q)
+      nprobe=     2  recall_tune=0.4129 recall_test=0.4564  qps= 33269.5  (timed 5000 q)
+      nprobe=     4  recall_tune=0.5709 recall_test=0.6099  qps= 23851.3  (timed 5000 q)
+      nprobe=     8  recall_tune=0.7263 recall_test=0.7567  qps= 16250.8  (timed 5000 q)
+      nprobe=    16  recall_tune=0.8512 recall_test=0.8720  qps=  9379.7  (timed 5000 q)
+      nprobe=    32  recall_tune=0.9353 recall_test=0.9470  qps=  5235.7  (timed 5000 q)
+      nprobe=    64  recall_tune=0.9798 recall_test=0.9848  qps=  2946.5  (timed 5000 q)
+      nprobe=   128  recall_tune=0.9962 recall_test=0.9975  qps=  1590.4  (timed 5000 q)
+      early stop: recall saturated
+    build Flat {} on n=300000 ...
+      built in 0.1s, 153.6 MB (512.0 B/vec)
+      none=  None  recall_tune=1.0000 recall_test=1.0000  qps=   130.8  (timed 2624 q)
+      early stop: recall saturated
+
+=== Part 3: sift at n=1,000,000 ===
+  Dataset(name='sift', n=1000000, dim=128, n_queries=10000, normalized=False); nlist for this size = 4096
+    build HNSW {"M": 16, "ef_construction": 200} on n=1000000 ...
+      built in 76.1s, 660.5 MB (660.5 B/vec)
+      efSearch=    10  recall_tune=0.6941 recall_test=0.7250  qps= 28619.3  (timed 5000 q)
+      efSearch=    20  recall_tune=0.8314 recall_test=0.8483  qps= 20260.9  (timed 5000 q)
+      efSearch=    40  recall_tune=0.9222 recall_test=0.9330  qps= 11098.1  (timed 5000 q)
+      efSearch=    80  recall_tune=0.9732 recall_test=0.9777  qps=  6689.1  (timed 5000 q)
+      efSearch=   160  recall_tune=0.9933 recall_test=0.9943  qps=  3848.4  (timed 5000 q)
+      efSearch=   320  recall_tune=0.9988 recall_test=0.9991  qps=  2187.1  (timed 5000 q)
+      early stop: recall saturated
+    build IVF-Flat {"nlist": 4096} on n=1000000 ...
+      built in 215.8s, 522.1 MB (522.1 B/vec)
+      nprobe=     1  recall_tune=0.2640 recall_test=0.3015  qps= 21685.3  (timed 5000 q)
+      nprobe=     2  recall_tune=0.3985 recall_test=0.4446  qps= 15825.6  (timed 5000 q)
+      nprobe=     4  recall_tune=0.5490 recall_test=0.5955  qps= 12735.5  (timed 5000 q)
+      nprobe=     8  recall_tune=0.7033 recall_test=0.7356  qps=  8734.4  (timed 5000 q)
+      nprobe=    16  recall_tune=0.8295 recall_test=0.8514  qps=  5649.1  (timed 5000 q)
+      nprobe=    32  recall_tune=0.9191 recall_test=0.9304  qps=  3070.9  (timed 5000 q)
+      nprobe=    64  recall_tune=0.9707 recall_test=0.9750  qps=  1674.1  (timed 5000 q)
+      nprobe=   128  recall_tune=0.9932 recall_test=0.9935  qps=   895.5  (timed 5000 q)
+      nprobe=   256  recall_tune=0.9990 recall_test=0.9992  qps=   476.8  (timed 5000 q)
+      early stop: recall saturated
+    build Flat {} on n=1000000 ...
+      built in 0.4s, 512.0 MB (512.0 B/vec)
+      none=  None  recall_tune=1.0000 recall_test=1.0000  qps=    40.3  (timed 832 q)
+      early stop: recall saturated
+
+[1m=== Part 4: intrinsic dimensionality on generated data ===[0m
+config: full  (configs/full.yaml)
+machine: Linux-x86_64-20core | faiss 1.15.1 | commit c0f8e94+dirty
+
+=== Part 4: k_intrinsic=2 ===
+  Dataset(name='subspace-d128-k2', n=200000, dim=128, n_queries=1000, normalized=False)
+  relative contrast: median 18.816 (p10 15.005, p90 26.152); NN distance 0.0637 = 0.90x the noise floor
+    build Flat {} on n=200000 ...
+      built in 0.0s, 102.4 MB (512.0 B/vec)
+      none=  None  recall_tune=1.0000 recall_test=0.9998  qps=   198.8  (timed 500 q)
+      early stop: recall saturated
+    build HNSW {"M": 16, "ef_construction": 200} on n=200000 ...
+      built in 2.8s, 132.1 MB (660.5 B/vec)
+      efSearch=    10  recall_tune=0.9468 recall_test=0.9434  qps= 67313.0  (timed 500 q)
+      efSearch=    20  recall_tune=0.9892 recall_test=0.9890  qps= 44625.1  (timed 500 q)
+      efSearch=    40  recall_tune=0.9990 recall_test=0.9994  qps= 34104.4  (timed 500 q)
+      early stop: recall saturated
+    build IVF-Flat {"nlist": 1024} on n=200000 ...
+      built in 11.4s, 104.5 MB (522.7 B/vec)
+      nprobe=     1  recall_tune=0.7826 recall_test=0.7864  qps= 60098.0  (timed 500 q)
+      nprobe=     2  recall_tune=0.9486 recall_test=0.9538  qps= 42078.7  (timed 500 q)
+      nprobe=     4  recall_tune=0.9996 recall_test=0.9994  qps= 29126.9  (timed 500 q)
+      early stop: recall saturated
+    build IVF-PQ {"m": 16, "nbits": 8, "nlist": 1024} on n=200000 ...
+      built in 18.0s, 5.5 MB (27.3 B/vec)
+      nprobe=     1  recall_tune=0.4768 recall_test=0.4776  qps= 58113.4  (timed 500 q)
+      nprobe=     2  recall_tune=0.5158 recall_test=0.5126  qps= 45829.7  (timed 500 q)
+      nprobe=     4  recall_tune=0.5262 recall_test=0.5188  qps= 43302.7  (timed 500 q)
+      nprobe=     8  recall_tune=0.5262 recall_test=0.5188  qps= 31038.2  (timed 500 q)
+      nprobe=    16  recall_tune=0.5262 recall_test=0.5188  qps= 19826.5  (timed 500 q)
+      nprobe=    32  recall_tune=0.5262 recall_test=0.5188  qps= 11683.3  (timed 500 q)
+      nprobe=    64  recall_tune=0.5262 recall_test=0.5188  qps=  7329.8  (timed 500 q)
+      nprobe=   128  recall_tune=0.5262 recall_test=0.5188  qps=  3999.4  (timed 500 q)
+      nprobe=   256  recall_tune=0.5262 recall_test=0.5188  qps=  2063.6  (timed 500 q)
+      nprobe=   512  recall_tune=0.5262 recall_test=0.5188  qps=  1070.8  (timed 500 q)
+      nprobe=  1024  recall_tune=0.5262 recall_test=0.5188  qps=   532.3  (timed 500 q)
+
+=== Part 4: k_intrinsic=8 ===
+  Dataset(name='subspace-d128-k8', n=200000, dim=128, n_queries=1000, normalized=False)
+  relative contrast: median 5.258 (p10 4.292, p90 6.471); NN distance 0.2681 = 3.79x the noise floor
+    build Flat {} on n=200000 ...
+      built in 0.0s, 102.4 MB (512.0 B/vec)
+      none=  None  recall_tune=1.0000 recall_test=1.0000  qps=   201.9  (timed 500 q)
+      early stop: recall saturated
+    build HNSW {"M": 16, "ef_construction": 200} on n=200000 ...
+      built in 7.2s, 132.1 MB (660.5 B/vec)
+      efSearch=    10  recall_tune=0.9416 recall_test=0.9356  qps= 49463.3  (timed 500 q)
+      efSearch=    20  recall_tune=0.9900 recall_test=0.9870  qps= 31802.1  (timed 500 q)
+      efSearch=    40  recall_tune=0.9996 recall_test=0.9986  qps= 20236.9  (timed 500 q)
+      early stop: recall saturated
+    build IVF-Flat {"nlist": 1024} on n=200000 ...
+      built in 11.5s, 104.5 MB (522.7 B/vec)
+      nprobe=     1  recall_tune=0.3854 recall_test=0.3666  qps= 44810.5  (timed 500 q)
+      nprobe=     2  recall_tune=0.5678 recall_test=0.5410  qps= 42187.2  (timed 500 q)
+      nprobe=     4  recall_tune=0.7540 recall_test=0.7324  qps= 26155.2  (timed 500 q)
+      nprobe=     8  recall_tune=0.9102 recall_test=0.8926  qps= 15778.6  (timed 500 q)
+      nprobe=    16  recall_tune=0.9786 recall_test=0.9794  qps=  8806.2  (timed 500 q)
+      nprobe=    32  recall_tune=0.9996 recall_test=0.9988  qps=  4947.7  (timed 500 q)
+      early stop: recall saturated
+    build IVF-PQ {"m": 16, "nbits": 8, "nlist": 1024} on n=200000 ...
+      built in 18.2s, 5.5 MB (27.3 B/vec)
+      nprobe=     1  recall_tune=0.3734 recall_test=0.3574  qps= 59459.3  (timed 500 q)
+      nprobe=     2  recall_tune=0.5310 recall_test=0.5124  qps= 54587.4  (timed 500 q)
+      nprobe=     4  recall_tune=0.6636 recall_test=0.6546  qps= 43270.1  (timed 500 q)
+      nprobe=     8  recall_tune=0.7382 recall_test=0.7298  qps= 34167.6  (timed 500 q)
+      nprobe=    16  recall_tune=0.7604 recall_test=0.7542  qps= 19271.6  (timed 500 q)
+      nprobe=    32  recall_tune=0.7610 recall_test=0.7554  qps= 11910.4  (timed 500 q)
+      nprobe=    64  recall_tune=0.7612 recall_test=0.7554  qps=  6956.3  (timed 500 q)
+      nprobe=   128  recall_tune=0.7612 recall_test=0.7554  qps=  3965.8  (timed 500 q)
+      nprobe=   256  recall_tune=0.7612 recall_test=0.7554  qps=  2067.7  (timed 500 q)
+      nprobe=   512  recall_tune=0.7612 recall_test=0.7554  qps=  1043.8  (timed 500 q)
+      nprobe=  1024  recall_tune=0.7612 recall_test=0.7554  qps=   527.4  (timed 500 q)
+
+=== Part 4: k_intrinsic=32 ===
+  Dataset(name='subspace-d128-k32', n=200000, dim=128, n_queries=1000, normalized=False)
+  relative contrast: median 1.853 (p10 1.752, p90 1.995); NN distance 0.7568 = 10.70x the noise floor
+    build Flat {} on n=200000 ...
+      built in 0.0s, 102.4 MB (512.0 B/vec)
+      none=  None  recall_tune=1.0000 recall_test=1.0000  qps=   202.8  (timed 500 q)
+      early stop: recall saturated
+    build HNSW {"M": 16, "ef_construction": 200} on n=200000 ...
+      built in 13.5s, 132.1 MB (660.5 B/vec)
+      efSearch=    10  recall_tune=0.3540 recall_test=0.3438  qps= 31087.2  (timed 500 q)
+      efSearch=    20  recall_tune=0.5008 recall_test=0.5030  qps= 19821.9  (timed 500 q)
+      efSearch=    40  recall_tune=0.6682 recall_test=0.6752  qps= 10723.4  (timed 500 q)
+      efSearch=    80  recall_tune=0.8258 recall_test=0.8232  qps=  6334.2  (timed 500 q)
+      efSearch=   160  recall_tune=0.9294 recall_test=0.9296  qps=  3439.2  (timed 500 q)
+      efSearch=   320  recall_tune=0.9816 recall_test=0.9778  qps=  1893.2  (timed 500 q)
+      efSearch=   640  recall_tune=0.9960 recall_test=0.9950  qps=   981.1  (timed 500 q)
+      early stop: recall saturated
+    build IVF-Flat {"nlist": 1024} on n=200000 ...
+      built in 10.2s, 104.5 MB (522.7 B/vec)
+      nprobe=     1  recall_tune=0.0762 recall_test=0.0826  qps= 62071.7  (timed 500 q)
+      nprobe=     2  recall_tune=0.1188 recall_test=0.1330  qps= 45049.4  (timed 500 q)
+      nprobe=     4  recall_tune=0.1912 recall_test=0.2040  qps= 25887.2  (timed 500 q)
+      nprobe=     8  recall_tune=0.2938 recall_test=0.3082  qps= 16216.9  (timed 500 q)
+      nprobe=    16  recall_tune=0.4208 recall_test=0.4366  qps=  9938.3  (timed 500 q)
+      nprobe=    32  recall_tune=0.5752 recall_test=0.5890  qps=  4953.9  (timed 500 q)
+      nprobe=    64  recall_tune=0.7496 recall_test=0.7402  qps=  2582.6  (timed 500 q)
+      nprobe=   128  recall_tune=0.8798 recall_test=0.8890  qps=  1273.7  (timed 500 q)
+      nprobe=   256  recall_tune=0.9676 recall_test=0.9734  qps=   705.9  (timed 500 q)
+      nprobe=   512  recall_tune=0.9980 recall_test=0.9976  qps=   349.6  (timed 500 q)
+      early stop: recall saturated
+    build IVF-PQ {"m": 16, "nbits": 8, "nlist": 1024} on n=200000 ...
+      built in 16.9s, 5.5 MB (27.3 B/vec)
+      nprobe=     1  recall_tune=0.0748 recall_test=0.0812  qps= 43397.4  (timed 500 q)
+      nprobe=     2  recall_tune=0.1140 recall_test=0.1278  qps= 47413.6  (timed 500 q)
+      nprobe=     4  recall_tune=0.1716 recall_test=0.1846  qps= 41000.8  (timed 500 q)
+      nprobe=     8  recall_tune=0.2374 recall_test=0.2502  qps= 31356.4  (timed 500 q)
+      nprobe=    16  recall_tune=0.3080 recall_test=0.3186  qps= 20331.3  (timed 500 q)
+      nprobe=    32  recall_tune=0.3792 recall_test=0.3816  qps= 12901.3  (timed 500 q)
+      nprobe=    64  recall_tune=0.4290 recall_test=0.4206  qps=  7130.7  (timed 500 q)
+      nprobe=   128  recall_tune=0.4536 recall_test=0.4500  qps=  4053.9  (timed 500 q)
+      nprobe=   256  recall_tune=0.4638 recall_test=0.4588  qps=  2183.7  (timed 500 q)
+      nprobe=   512  recall_tune=0.4672 recall_test=0.4606  qps=  1061.8  (timed 500 q)
+      nprobe=  1024  recall_tune=0.4674 recall_test=0.4606  qps=   539.3  (timed 500 q)
+
+=== Part 4: k_intrinsic=128 (control) ===
+  Dataset(name='subspace-d128-k128', n=200000, dim=128, n_queries=1000, normalized=False)
+  relative contrast: median 1.313 (p10 1.289, p90 1.348); NN distance 1.0711 = 15.15x the noise floor
+    build Flat {} on n=200000 ...
+      built in 0.0s, 102.4 MB (512.0 B/vec)
+      none=  None  recall_tune=1.0000 recall_test=1.0000  qps=   194.3  (timed 500 q)
+      early stop: recall saturated
+    build HNSW {"M": 16, "ef_construction": 200} on n=200000 ...
+      built in 11.5s, 132.1 MB (660.5 B/vec)
+      efSearch=    10  recall_tune=0.1242 recall_test=0.1230  qps= 25084.0  (timed 500 q)
+      efSearch=    20  recall_tune=0.2052 recall_test=0.1976  qps= 20785.2  (timed 500 q)
+      efSearch=    40  recall_tune=0.3122 recall_test=0.2982  qps= 12674.8  (timed 500 q)
+      efSearch=    80  recall_tune=0.4436 recall_test=0.4346  qps=  7155.8  (timed 500 q)
+      efSearch=   160  recall_tune=0.5924 recall_test=0.5850  qps=  3791.9  (timed 500 q)
+      efSearch=   320  recall_tune=0.7300 recall_test=0.7324  qps=  1980.8  (timed 500 q)
+      efSearch=   640  recall_tune=0.8418 recall_test=0.8354  qps=   980.3  (timed 500 q)
+      efSearch=  1280  recall_tune=0.9134 recall_test=0.9138  qps=   519.3  (timed 500 q)
+      efSearch=  2560  recall_tune=0.9594 recall_test=0.9604  qps=   279.7  (timed 500 q)
+    build IVF-Flat {"nlist": 1024} on n=200000 ...
+      built in 9.8s, 104.5 MB (522.7 B/vec)
+      nprobe=     1  recall_tune=0.0150 recall_test=0.0186  qps= 56078.0  (timed 500 q)
+      nprobe=     2  recall_tune=0.0290 recall_test=0.0306  qps= 40986.2  (timed 500 q)
+      nprobe=     4  recall_tune=0.0498 recall_test=0.0520  qps= 23892.3  (timed 500 q)
+      nprobe=     8  recall_tune=0.0852 recall_test=0.0856  qps= 15851.5  (timed 500 q)
+      nprobe=    16  recall_tune=0.1370 recall_test=0.1380  qps=  8621.6  (timed 500 q)
+      nprobe=    32  recall_tune=0.2228 recall_test=0.2282  qps=  4446.6  (timed 500 q)
+      nprobe=    64  recall_tune=0.3424 recall_test=0.3540  qps=  2310.6  (timed 500 q)
+      nprobe=   128  recall_tune=0.5114 recall_test=0.5254  qps=  1145.5  (timed 500 q)
+      nprobe=   256  recall_tune=0.7266 recall_test=0.7268  qps=   590.7  (timed 500 q)
+      nprobe=   512  recall_tune=0.9258 recall_test=0.9182  qps=   300.4  (timed 500 q)
+      nprobe=  1024  recall_tune=1.0000 recall_test=1.0000  qps=   177.6  (timed 500 q)
+      early stop: recall saturated
+    build IVF-PQ {"m": 16, "nbits": 8, "nlist": 1024} on n=200000 ...
+      built in 17.4s, 5.5 MB (27.3 B/vec)
+      nprobe=     1  recall_tune=0.0126 recall_test=0.0158  qps= 61843.3  (timed 500 q)
+      nprobe=     2  recall_tune=0.0234 recall_test=0.0240  qps= 53620.6  (timed 500 q)
+      nprobe=     4  recall_tune=0.0352 recall_test=0.0354  qps= 39720.3  (timed 500 q)
+      nprobe=     8  recall_tune=0.0500 recall_test=0.0472  qps= 32282.0  (timed 500 q)
+      nprobe=    16  recall_tune=0.0666 recall_test=0.0632  qps= 19385.8  (timed 500 q)
+      nprobe=    32  recall_tune=0.0852 recall_test=0.0868  qps= 11542.1  (timed 500 q)
+      nprobe=    64  recall_tune=0.0996 recall_test=0.1008  qps=  6447.9  (timed 500 q)
+      nprobe=   128  recall_tune=0.1144 recall_test=0.1158  qps=  3767.0  (timed 500 q)
+      nprobe=   256  recall_tune=0.1296 recall_test=0.1294  qps=  1944.2  (timed 500 q)
+      nprobe=   512  recall_tune=0.1336 recall_test=0.1338  qps=   999.5  (timed 500 q)
+      nprobe=  1024  recall_tune=0.1352 recall_test=0.1330  qps=   538.8  (timed 500 q)
+
+wrote results/tables/part4_contrast.md
+
+[1m=== Figures and tables (regenerated from results/results.csv only) ===[0m
+  wrote results/figures/part2_tradeoff_glove.png
+  wrote results/figures/part2_tradeoff_sift.png
+  wrote results/figures/part3_scaling.png
+  wrote results/figures/part4_intrinsic_dimension.png
+
+4 figures written to results/figures/
+  wrote results/tables/part2_qps_at_recall.md and results/tables/part2_qps_at_recall.tex
+  wrote results/tables/part2_cost_at_recall.md and results/tables/part2_cost_at_recall.tex
+  wrote results/tables/part3_scaling.md and results/tables/part3_scaling.tex
+
+tables written to results/tables/
+
+[1m=== Done in 151m 47s ===[0m
+  results : results/results.csv   (364 rows)
+  figures : results/figures/
+  tables  : results/tables/
+  env     : results/env.json
